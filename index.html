@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,284 +7,153 @@
     <title>Reto Volumen Botella</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
     <div class="container">
 
         <h1>Cálculo de Volumen Numérico</h1>
 
-        <!-- ============================= -->
         <!-- CONTROLES -->
-        <!-- ============================= -->
-
         <div class="controls-card">
 
             <div class="input-group">
-                <label for="realHeight">
-                    Altura real (cm):
-                </label>
-
-                <input
-                    type="number"
-                    id="realHeight"
-                    value="21"
-                    step="0.1"
-                    min="1"
-                >
+                <label for="realHeight">Altura real (cm):</label>
+                <input type="number" id="realHeight" value="21" step="0.1" min="1">
             </div>
 
-
             <div class="input-group">
-                <label for="targetVolume">
-                    Volumen Objetivo (mL):
-                </label>
-
+                <label for="targetVolume">Volumen Objetivo (mL):</label>
                 <input
                     type="number"
                     id="targetVolume"
                     value="250"
                     step="10"
-                    min="1"
+                    min="0"
+                    placeholder="Ej: 250, 500, 1000"
                 >
             </div>
 
-
             <div class="button-group">
-
-                <button
-                    id="btnStartCamera"
-                    class="btn primary"
-                >
+                <button id="btnStartCamera" class="btn primary">
                     Iniciar Cámara
                 </button>
 
-
-                <button
-                    id="btnCapture"
-                    class="btn secondary"
-                    disabled
-                >
+                <button id="btnCapture" class="btn secondary" disabled>
                     Capturar Foto
                 </button>
 
-
-                <button
-                    id="btnReset"
-                    class="btn danger"
-                >
+                <button id="btnReset" class="btn danger">
                     Reiniciar Puntos
                 </button>
+            </div>
 
+            <div class="instructions">
+                <strong>Seleccione 4 puntos sobre la botella:</strong>
+                <ol>
+                    <li>Tapa</li>
+                    <li>Base</li>
+                    <li>Radio máximo</li>
+                    <li>Radio mínimo</li>
+                </ol>
             </div>
 
         </div>
 
-
-        <!-- ============================= -->
         <!-- VISOR -->
-        <!-- ============================= -->
-
         <div class="viewer-card">
 
-            <video
-                id="video"
-                autoplay
-                playsinline
-                muted
-                style="display: none;"
-            ></video>
+            <video id="video" autoplay playsinline style="display: none;"></video>
 
+            <canvas id="canvas" style="display: none;"></canvas>
 
-            <canvas
-                id="canvas"
-                style="display: none;"
-            ></canvas>
-
-
-            <div
-                id="pointInstructions"
-                class="instructions"
-            >
-                Primero inicia la cámara y captura una fotografía.
-                Después selecciona los 4 puntos:
-                <b>Tapa → Base → Borde máximo → Borde mínimo</b>.
+            <div id="pointStatus" class="point-status">
+                Puntos seleccionados: 0 / 4
             </div>
 
-
-            <button
-                id="btnCalculate"
-                class="btn success"
-                disabled
-            >
+            <button id="btnCalculate" class="btn success" disabled>
                 Calcular Volumen
             </button>
 
         </div>
 
-
-        <!-- ============================= -->
         <!-- RESULTADOS -->
-        <!-- ============================= -->
-
-        <div
-            id="resultsCard"
-            class="card"
-            style="display: none;"
-        >
+        <div id="resultsCard" class="card" style="display: none;">
 
             <h2>Resultados del Cálculo Numérico</h2>
-
 
             <div class="summary-box">
 
                 <p>
-                    <strong>
-                        Volumen Total Estimado:
-                    </strong>
-
-                    <span id="volResult">
-                        0
-                    </span>
-                    mL
+                    <strong>Volumen Total Estimado:</strong>
+                    <span id="volResult">0</span> mL (cm³)
                 </p>
 
-
                 <p>
-                    <strong>
-                        Volumen Objetivo:
-                    </strong>
-
-                    <span id="targetResult">
-                        0
-                    </span>
-                    mL
+                    <strong>Volumen Objetivo:</strong>
+                    <span id="targetResult">0</span> mL
                 </p>
 
-
                 <p>
-                    <strong>
-                        Nodos Evaluados:
-                    </strong>
-
-                    <span id="pointsCount">
-                        0
-                    </span>
-                </p>
-
-
-                <p>
-                    <strong>
-                        Radio máximo:
-                    </strong>
-
-                    <span id="maxRadiusResult">
-                        0
-                    </span>
-                    cm
-                </p>
-
-
-                <p>
-                    <strong>
-                        Radio mínimo:
-                    </strong>
-
-                    <span id="minRadiusResult">
-                        0
-                    </span>
-                    cm
+                    <strong>Nodos Evaluados:</strong>
+                    <span id="pointsCount">0</span>
                 </p>
 
             </div>
 
-
-            <!-- ============================= -->
-            <!-- TABLA DE MÉTODOS -->
-            <!-- ============================= -->
-
-            <h3>
-                Comparación de Métodos Numéricos
-            </h3>
-
+            <h3>Resultados de los métodos</h3>
 
             <div class="table-container">
-
                 <table id="methodsTable">
 
                     <thead>
-
                         <tr>
                             <th>Método</th>
                             <th>Altura (cm)</th>
+                            <th>Radio (cm)</th>
+                            <th>Volumen (mL)</th>
+                            <th>Error</th>
                             <th>Iteraciones</th>
-                            <th>Error / Residuo</th>
+                            <th>Estado</th>
                         </tr>
-
                     </thead>
 
-
-                    <tbody>
-
-                    </tbody>
+                    <tbody></tbody>
 
                 </table>
-
             </div>
 
-
-            <!-- ============================= -->
-            <!-- SILUETA -->
-            <!-- ============================= -->
-
-            <h3>
-                Silueta Reconstruida
-            </h3>
-
-
-            <canvas
-                id="siluetaCanvas"
-                width="400"
-                height="500"
-            ></canvas>
-
-
-            <!-- ============================= -->
-            <!-- DATASET -->
-            <!-- ============================= -->
-
-            <h3>
-                Dataset Extraído (zᵢ, rᵢ)
-            </h3>
-
+            <h3>Dataset Extraído (zᵢ, rᵢ)</h3>
 
             <div class="table-container">
-
                 <table id="datasetTable">
 
                     <thead>
-
                         <tr>
                             <th>#</th>
                             <th>Altura zᵢ (cm)</th>
                             <th>Radio rᵢ (cm)</th>
                         </tr>
-
                     </thead>
-
 
                     <tbody></tbody>
 
                 </table>
-
             </div>
+
+            <h3>Silueta reconstruida de la botella</h3>
+
+            <div class="graph-container">
+                <canvas id="siluetaCanvas"></canvas>
+            </div>
+
+            <div id="graphLegend" class="graph-legend"></div>
 
         </div>
 
     </div>
 
-
     <script src="app.js"></script>
 
 </body>
 </html>
+```
