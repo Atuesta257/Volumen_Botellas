@@ -2,181 +2,1090 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-const profileCanvas = document.getElementById('profileCanvas');
-const profileCtx = profileCanvas.getContext('2d');
+const profileCanvas =
+document.getElementById('profileCanvas');
 
-const btnStartCamera = document.getElementById('btnStartCamera');
-const btnCapture = document.getElementById('btnCapture');
-const btnReset = document.getElementById('btnReset');
-const btnCalculate = document.getElementById('btnCalculate');
+const profileCtx =
+profileCanvas.getContext('2d');
 
-const realHeightInput = document.getElementById('realHeight');
-const targetVolumeInput = document.getElementById('targetVolume');
+const btnStartCamera =
+document.getElementById('btnStartCamera');
+
+const btnCapture =
+document.getElementById('btnCapture');
+
+const btnReset =
+document.getElementById('btnReset');
+
+const btnCalculate =
+document.getElementById('btnCalculate');
+
+const realHeightInput =
+document.getElementById('realHeight');
+
+const targetVolumeInput =
+document.getElementById('targetVolume');
+
+const cameraStatus =
+document.getElementById('cameraStatus');
+
+const pointInstructions =
+document.getElementById('pointInstructions');
 
 let stream = null;
+
 let calibrationPoints = [];
+
 let imageCaptured = false;
+
 let capturedImageObj = null;
 
-const PI_MANUAL = 3.141592653589793;
+const PI_MANUAL =
+3.141592653589793;
 
 /* ============================================================
 FUNCIONES MATEMÁTICAS
 ============================================================ */
 
 function elevarAlCuadrado(base) {
+
+```
 return base * base;
+```
+
 }
 
 function valorAbsoluto(numero) {
-return numero < 0 ? -numero : numero;
+
+```
+return numero < 0
+    ? -numero
+    : numero;
+```
+
 }
+
+/* ============================================================
+INFORMACIÓN DE PUNTOS
+============================================================ */
+
+const pointLabels = [
+'Tapa',
+'Base',
+'Borde Max',
+'Borde Min'
+];
+
+const pointColors = [
+'#007bff',
+'#007bff',
+'#ff1744',
+'#ffc107'
+];
+
+/* ============================================================
+CÁMARA
+============================================================ */
+
+btnStartCamera.addEventListener(
+'click',
+async () => {
+
+```
+    /*
+     * Comprobar soporte del navegador.
+     */
+
+    if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+    ) {
+
+        cameraStatus.textContent =
+            'Este navegador no permite acceder a la cámara.';
+
+        cameraStatus.className =
+            'camera-status error';
+
+        return;
+    }
+
+
+    /*
+     * getUserMedia normalmente requiere:
+     * HTTPS o localhost.
+     */
+
+    const esSeguro =
+        window.isSecureContext ||
+        location.hostname === 'localhost' ||
+        location.hostname === '127.0.0.1';
+
+    if (!esSeguro) {
+
+        cameraStatus.textContent =
+            'La cámara requiere HTTPS o ejecutar la aplicación desde localhost.';
+
+        cameraStatus.className =
+            'camera-status error';
+
+        return;
+    }
+
+
+    try {
+
+        /*
+         * Detener una cámara anterior.
+         */
+
+        if (stream) {
+
+            stream.getTracks().forEach(
+                track => track.stop()
+            );
+        }
+
+
+        /*
+         * Solicitar cámara trasera.
+         */
+
+        stream =
+            await navigator.mediaDevices.getUserMedia({
+
+                video: {
+                    facingMode: {
+                        ideal: 'environment'
+                    },
+
+                    width: {
+                        ideal: 1280
+                    },
+
+                    height: {
+                        ideal: 720
+                    }
+                },
+
+                audio: false
+
+            });
+
+
+        video.srcObject =
+            stream;
+
+
+        await video.play();
+
+
+        video.style.display =
+            'block';
+
+        canvas.style.display =
+            'none';
+
+        btnCapture.disabled =
+            false;
+
+
+        cameraStatus.textContent =
+            'Cámara activa. Presiona "Capturar Foto".';
+
+        cameraStatus.className =
+            'camera-status success-status';
+
+
+    } catch (error) {
+
+        console.error(
+            'Error de cámara:',
+            error
+        );
+
+
+        let mensaje =
+            'No se pudo acceder a la cámara. ';
+
+
+        if (error.name === 'NotAllowedError') {
+
+            mensaje +=
+                'Debes permitir el acceso a la cámara.';
+
+        } else if (
+            error.name === 'NotFoundError'
+        ) {
+
+            mensaje +=
+                'No se encontró ninguna cámara.';
+
+        } else if (
+            error.name === 'NotReadableError'
+        ) {
+
+            mensaje +=
+                'La cámara está siendo utilizada por otra aplicación.';
+
+        } else if (
+            error.name === 'SecurityError'
+        ) {
+
+            mensaje +=
+                'El navegador bloqueó el acceso por seguridad.';
+
+        } else {
+
+            mensaje +=
+                error.message || 'Error desconocido.';
+
+        }
+
+
+        cameraStatus.textContent =
+            mensaje;
+
+        cameraStatus.className =
+            'camera-status error';
+
+    }
+
+}
+```
+
+);
+
+/* ============================================================
+CAPTURA DE IMAGEN
+============================================================ */
+
+btnCapture.addEventListener(
+'click',
+() => {
+
+```
+    if (
+        !stream ||
+        video.readyState < 2
+    ) {
+
+        alert(
+            'La cámara todavía no está lista.'
+        );
+
+        return;
+    }
+
+
+    canvas.width =
+        video.videoWidth || 640;
+
+    canvas.height =
+        video.videoHeight || 480;
+
+
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    /*
+     * Detener cámara.
+     */
+
+    if (stream) {
+
+        stream.getTracks().forEach(
+            track => track.stop()
+        );
+
+        stream = null;
+    }
+
+
+    video.srcObject = null;
+
+
+    video.style.display =
+        'none';
+
+    canvas.style.display =
+        'block';
+
+
+    btnCapture.disabled =
+        true;
+
+
+    imageCaptured =
+        true;
+
+
+    capturedImageObj =
+        new Image();
+
+
+    capturedImageObj.onload =
+        () => {
+
+            redrawCanvas();
+
+        };
+
+
+    capturedImageObj.src =
+        canvas.toDataURL(
+            'image/png'
+        );
+
+
+    cameraStatus.textContent =
+        'Fotografía capturada. Selecciona los 4 puntos.';
+
+    cameraStatus.className =
+        'camera-status success-status';
+
+
+    actualizarInstrucciones();
+
+}
+```
+
+);
 
 /* ============================================================
 AJUSTE AUTOMÁTICO AL BORDE
 ============================================================ */
 
-function snapToRealEdge(xClick, yClick) {
+function snapToRealEdge(
+xClick,
+yClick
+) {
 
 ```
 const searchRange = 12;
 
-let startX = Math.max(
-    0,
-    Math.floor(xClick - searchRange)
-);
+let startX =
+    Math.max(
+        0,
+        Math.floor(
+            xClick - searchRange
+        )
+    );
 
-let width = searchRange * 2;
+let width =
+    searchRange * 2;
+
 
 let imgData;
 
+
 try {
 
-    imgData = ctx.getImageData(
-        startX,
-        Math.floor(yClick),
-        width,
-        1
-    ).data;
+    imgData =
+        ctx.getImageData(
+            startX,
+            Math.floor(yClick),
+            width,
+            1
+        ).data;
 
 } catch (e) {
 
     return xClick;
 }
 
+
 let maxGradient = 0;
+
 let bestX = xClick;
 
-for (let i = 0; i < imgData.length - 8; i += 4) {
 
-    let brightnessCurrent =
-        (imgData[i] +
-         imgData[i + 1] +
-         imgData[i + 2]) / 3;
+for (
+    let i = 0;
+    i < imgData.length - 8;
+    i += 4
+) {
 
-    let brightnessNext =
-        (imgData[i + 4] +
-         imgData[i + 5] +
-         imgData[i + 6]) / 3;
+    const brightnessCurrent =
+        (
+            imgData[i] +
+            imgData[i + 1] +
+            imgData[i + 2]
+        ) / 3;
 
-    let gradient =
+
+    const brightnessNext =
+        (
+            imgData[i + 4] +
+            imgData[i + 5] +
+            imgData[i + 6]
+        ) / 3;
+
+
+    const gradient =
         valorAbsoluto(
-            brightnessNext - brightnessCurrent
+            brightnessNext -
+            brightnessCurrent
         );
 
-    if (gradient > maxGradient) {
 
-        maxGradient = gradient;
+    if (
+        gradient > maxGradient
+    ) {
 
-        let offset =
-            (i / 4) - searchRange;
+        maxGradient =
+            gradient;
 
-        bestX = xClick + offset;
+
+        const offset =
+            (i / 4) -
+            searchRange;
+
+
+        bestX =
+            xClick +
+            offset;
     }
 }
 
-return maxGradient > 15 ? bestX : xClick;
+
+return maxGradient > 15
+    ? bestX
+    : xClick;
 ```
 
 }
 
 /* ============================================================
-MODELO GEOMÉTRICO DE LA BOTELLA
+CLICS SOBRE LA IMAGEN
 ============================================================ */
 
-function radioEnAltura(z, maxRadiusCm, realHeightCm) {
+canvas.addEventListener(
+'click',
+(e) => {
 
 ```
-const porcentajeAltura =
-    z / realHeightCm;
+    if (!imageCaptured) {
+        return;
+    }
 
-if (porcentajeAltura <= 0.80) {
-    return maxRadiusCm;
+
+    if (
+        calibrationPoints.length >= 4
+    ) {
+
+        return;
+    }
+
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+
+    const scaleX =
+        canvas.width /
+        rect.width;
+
+
+    const scaleY =
+        canvas.height /
+        rect.height;
+
+
+    let x =
+        (e.clientX -
+         rect.left) *
+        scaleX;
+
+
+    let y =
+        (e.clientY -
+         rect.top) *
+        scaleY;
+
+
+    /*
+     * El tercer y cuarto punto
+     * se ajustan al borde.
+     */
+
+    if (
+        calibrationPoints.length === 2 ||
+        calibrationPoints.length === 3
+    ) {
+
+        x =
+            snapToRealEdge(
+                x,
+                y
+            );
+    }
+
+
+    calibrationPoints.push({
+        x: x,
+        y: y
+    });
+
+
+    redrawCanvas();
+
+
+    actualizarInstrucciones();
+
+
+    if (
+        calibrationPoints.length === 4
+    ) {
+
+        btnCalculate.disabled =
+            false;
+
+        pointInstructions.textContent =
+            'Los 4 puntos fueron seleccionados. Ya puedes calcular.';
+
+    }
+
+}
+```
+
+);
+
+/* ============================================================
+INSTRUCCIONES
+============================================================ */
+
+function actualizarInstrucciones() {
+
+```
+if (!imageCaptured) {
+
+    pointInstructions.textContent =
+        'Primero inicia la cámara y captura una fotografía.';
+
+    return;
 }
 
-const factorCuello =
-    1 -
-    ((porcentajeAltura - 0.80) / 0.20) * 0.25;
 
-return maxRadiusCm * factorCuello;
+const cantidad =
+    calibrationPoints.length;
+
+
+if (cantidad === 0) {
+
+    pointInstructions.textContent =
+        '1. Selecciona la Tapa de la botella.';
+
+} else if (cantidad === 1) {
+
+    pointInstructions.textContent =
+        '2. Selecciona la Base de la botella.';
+
+} else if (cantidad === 2) {
+
+    pointInstructions.textContent =
+        '3. Selecciona el Borde Máximo.';
+
+} else if (cantidad === 3) {
+
+    pointInstructions.textContent =
+        '4. Selecciona el Borde Mínimo.';
+
+} else {
+
+    pointInstructions.textContent =
+        'Los 4 puntos fueron seleccionados.';
+}
 ```
 
 }
 
 /* ============================================================
-VOLUMEN HASTA UNA ALTURA
-REGLA DEL TRAPECIO
+REDIBUJAR IMAGEN Y PUNTOS
 ============================================================ */
 
-function calcularVolumenHastaAltura(
-hEval,
-maxRadiusCm,
-realHeightCm
+function redrawCanvas() {
+
+```
+ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+);
+
+
+if (capturedImageObj) {
+
+    ctx.drawImage(
+        capturedImageObj,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+}
+
+
+for (
+    let i = 0;
+    i < calibrationPoints.length;
+    i++
+) {
+
+    const point =
+        calibrationPoints[i];
+
+
+    ctx.fillStyle =
+        pointColors[i];
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        point.x,
+        point.y,
+        8,
+        0,
+        2 * PI_MANUAL
+    );
+
+
+    ctx.fill();
+
+
+    ctx.strokeStyle =
+        'white';
+
+    ctx.lineWidth =
+        2;
+
+    ctx.stroke();
+
+
+    ctx.fillStyle =
+        'white';
+
+    ctx.font =
+        'bold 14px Arial';
+
+
+    ctx.fillText(
+        pointLabels[i],
+        point.x + 12,
+        point.y + 5
+    );
+
+}
+
+
+/*
+ * Línea de referencia vertical.
+ */
+
+if (
+    calibrationPoints.length >= 2
+) {
+
+    const top =
+        calibrationPoints[0];
+
+    const bottom =
+        calibrationPoints[1];
+
+
+    ctx.strokeStyle =
+        'rgba(0, 123, 255, 0.8)';
+
+    ctx.lineWidth = 2;
+
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        top.x,
+        top.y
+    );
+
+    ctx.lineTo(
+        bottom.x,
+        bottom.y
+    );
+
+    ctx.stroke();
+}
+```
+
+}
+
+/* ============================================================
+OBTENER INFORMACIÓN GEOMÉTRICA
+============================================================ */
+
+function obtenerGeometria() {
+
+```
+const top =
+    calibrationPoints[0];
+
+const bottom =
+    calibrationPoints[1];
+
+const maxPoint =
+    calibrationPoints[2];
+
+const minPoint =
+    calibrationPoints[3];
+
+
+const pixelHeight =
+    valorAbsoluto(
+        bottom.y -
+        top.y
+    );
+
+
+if (pixelHeight <= 0) {
+
+    throw new Error(
+        'La altura de la botella no es válida.'
+    );
+}
+
+
+const realHeight =
+    parseFloat(
+        realHeightInput.value
+    ) || 21;
+
+
+const cmPerPixel =
+    realHeight /
+    pixelHeight;
+
+
+/*
+ * Centro de la botella.
+ */
+
+const centerX =
+    (top.x + bottom.x) / 2;
+
+
+/*
+ * Radio máximo.
+ */
+
+const maxRadius =
+    valorAbsoluto(
+        maxPoint.x -
+        centerX
+    ) * cmPerPixel;
+
+
+/*
+ * Radio mínimo.
+ */
+
+const minRadius =
+    valorAbsoluto(
+        minPoint.x -
+        centerX
+    ) * cmPerPixel;
+
+
+/*
+ * Altura de cada punto.
+ *
+ * En la imagen Y aumenta hacia abajo.
+ * Por eso invertimos la coordenada.
+ */
+
+function convertirYAZ(y) {
+
+    return (
+        bottom.y - y
+    ) * cmPerPixel;
+}
+
+
+let maxHeight =
+    convertirYAZ(
+        maxPoint.y
+    );
+
+
+let minHeight =
+    convertirYAZ(
+        minPoint.y
+    );
+
+
+/*
+ * Limitar alturas al recipiente.
+ */
+
+maxHeight =
+    Math.max(
+        0,
+        Math.min(
+            realHeight,
+            maxHeight
+        )
+    );
+
+
+minHeight =
+    Math.max(
+        0,
+        Math.min(
+            realHeight,
+            minHeight
+        )
+    );
+
+
+return {
+
+    realHeight: realHeight,
+
+    centerX: centerX,
+
+    maxRadius: maxRadius,
+
+    minRadius: minRadius,
+
+    maxHeight: maxHeight,
+
+    minHeight: minHeight
+
+};
+```
+
+}
+
+/* ============================================================
+RADIO A PARTIR DE LOS 4 PUNTOS
+============================================================ */
+
+function radioEnAltura(
+z,
+geometria
 ) {
 
 ```
-if (hEval <= 0) {
+const H =
+    geometria.realHeight;
+
+const rMax =
+    geometria.maxRadius;
+
+const rMin =
+    geometria.minRadius;
+
+const zMax =
+    geometria.maxHeight;
+
+const zMin =
+    geometria.minHeight;
+
+
+/*
+ * Creamos dos puntos adicionales:
+ *
+ * (0, rMin)
+ * (H, rMin)
+ *
+ * y usamos los puntos reales
+ * de radio mínimo y máximo.
+ */
+
+const puntos = [
+
+    {
+        z: 0,
+        r: rMin
+    },
+
+    {
+        z: zMax,
+        r: rMax
+    },
+
+    {
+        z: zMin,
+        r: rMin
+    },
+
+    {
+        z: H,
+        r: rMin
+    }
+
+];
+
+
+/*
+ * Ordenar por altura.
+ */
+
+puntos.sort(
+    (a, b) => a.z - b.z
+);
+
+
+/*
+ * Si estamos antes del primer punto.
+ */
+
+if (z <= puntos[0].z) {
+
+    return puntos[0].r;
+}
+
+
+/*
+ * Buscar segmento correspondiente.
+ */
+
+for (
+    let i = 0;
+    i < puntos.length - 1;
+    i++
+) {
+
+    const p0 =
+        puntos[i];
+
+    const p1 =
+        puntos[i + 1];
+
+
+    if (
+        z >= p0.z &&
+        z <= p1.z
+    ) {
+
+        const diferencia =
+            p1.z - p0.z;
+
+
+        if (
+            valorAbsoluto(diferencia)
+            < 0.000001
+        ) {
+
+            return p0.r;
+        }
+
+
+        const t =
+            (z - p0.z) /
+            diferencia;
+
+
+        return (
+            p0.r +
+            t * (p1.r - p0.r)
+        );
+
+    }
+
+}
+
+
+return puntos[
+    puntos.length - 1
+].r;
+```
+
+}
+
+/* ============================================================
+FUNCIÓN DE VOLUMEN
+============================================================ */
+
+function calcularVolumenHastaAltura(
+h,
+geometria
+) {
+
+```
+if (h <= 0) {
     return 0;
 }
 
-if (hEval > realHeightCm) {
-    hEval = realHeightCm;
+
+if (
+    h > geometria.realHeight
+) {
+
+    h =
+        geometria.realHeight;
 }
 
-const n = 12;
 
-const dz = hEval / n;
+const n = 20;
+
+const dz =
+    h / n;
+
 
 let volumen = 0;
 
-for (let i = 0; i < n; i++) {
 
-    const z0 = i * dz;
-    const z1 = (i + 1) * dz;
+for (
+    let i = 0;
+    i < n;
+    i++
+) {
+
+    const z0 =
+        i * dz;
+
+    const z1 =
+        (i + 1) * dz;
+
 
     const r0 =
         radioEnAltura(
             z0,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         );
+
 
     const r1 =
         radioEnAltura(
             z1,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         );
 
+
     const area0 =
-        PI_MANUAL * elevarAlCuadrado(r0);
+        PI_MANUAL *
+        elevarAlCuadrado(r0);
+
 
     const area1 =
-        PI_MANUAL * elevarAlCuadrado(r1);
+        PI_MANUAL *
+        elevarAlCuadrado(r1);
+
 
     volumen +=
-        ((area0 + area1) / 2) * dz;
+        ((area0 + area1) / 2) *
+        dz;
+
 }
+
 
 return volumen;
 ```
@@ -184,197 +1093,241 @@ return volumen;
 }
 
 /* ============================================================
-FUNCIÓN DEL PROBLEMA
-f(h) = V(h) - Vobjetivo
+FUNCIÓN f(h)
 ============================================================ */
 
 function funcionVolumen(
 h,
-maxRadiusCm,
-realHeightCm,
+geometria,
 volumenObjetivo
 ) {
 
 ```
-return calcularVolumenHastaAltura(
-    h,
-    maxRadiusCm,
-    realHeightCm
-) - volumenObjetivo;
+return (
+    calcularVolumenHastaAltura(
+        h,
+        geometria
+    ) -
+    volumenObjetivo
+);
 ```
 
 }
 
 /* ============================================================
-MÉTODO DE BISECCIÓN
+BISECCIÓN
 ============================================================ */
 
 function metodoBiseccion(
-volumenObjetivo,
-maxRadiusCm,
-realHeightCm
+objetivo,
+geometria
 ) {
 
 ```
 let a = 0;
-let b = realHeightCm;
 
-const tolerancia = 0.001;
-const maxIteraciones = 100;
+let b =
+    geometria.realHeight;
 
-let fa = funcionVolumen(
-    a,
-    maxRadiusCm,
-    realHeightCm,
-    volumenObjetivo
-);
 
-let fb = funcionVolumen(
-    b,
-    maxRadiusCm,
-    realHeightCm,
-    volumenObjetivo
-);
+let fa =
+    funcionVolumen(
+        a,
+        geometria,
+        objetivo
+    );
+
+
+let fb =
+    funcionVolumen(
+        b,
+        geometria,
+        objetivo
+    );
+
 
 if (fa * fb > 0) {
 
-    return {
-        altura: null,
-        volumen: null,
-        iteraciones: 0,
-        error: null
-    };
+    return null;
 }
 
-let medio = 0;
-let error = Infinity;
-let iteracion = 0;
+
+const tolerancia =
+    0.0001;
+
+const maxIteraciones =
+    100;
+
+
+let c = 0;
+
+let error =
+    Infinity;
+
+let iteraciones = 0;
+
 
 while (
     error > tolerancia &&
-    iteracion < maxIteraciones
+    iteraciones < maxIteraciones
 ) {
 
-    medio = (a + b) / 2;
+    c =
+        (a + b) / 2;
 
-    const fm = funcionVolumen(
-        medio,
-        maxRadiusCm,
-        realHeightCm,
-        volumenObjetivo
-    );
 
-    error = valorAbsoluto(fm);
+    const fc =
+        funcionVolumen(
+            c,
+            geometria,
+            objetivo
+        );
 
-    if (fa * fm < 0) {
 
-        b = medio;
-        fb = fm;
+    error =
+        valorAbsoluto(fc);
+
+
+    if (
+        fa * fc < 0
+    ) {
+
+        b = c;
+
+        fb = fc;
 
     } else {
 
-        a = medio;
-        fa = fm;
+        a = c;
+
+        fa = fc;
     }
 
-    iteracion++;
+
+    iteraciones++;
+
 }
+
 
 return {
 
-    altura: medio,
+    altura: c,
 
     volumen:
         calcularVolumenHastaAltura(
-            medio,
-            maxRadiusCm,
-            realHeightCm
+            c,
+            geometria
         ),
 
-    iteraciones: iteracion,
+    iteraciones: iteraciones,
 
     error: error
+
 };
 ```
 
 }
 
 /* ============================================================
-MÉTODO DE FALSA POSICIÓN
+FALSA POSICIÓN
 ============================================================ */
 
 function metodoFalsaPosicion(
-volumenObjetivo,
-maxRadiusCm,
-realHeightCm
+objetivo,
+geometria
 ) {
 
 ```
 let a = 0;
-let b = realHeightCm;
 
-const tolerancia = 0.001;
-const maxIteraciones = 100;
+let b =
+    geometria.realHeight;
 
-let fa = funcionVolumen(
-    a,
-    maxRadiusCm,
-    realHeightCm,
-    volumenObjetivo
-);
 
-let fb = funcionVolumen(
-    b,
-    maxRadiusCm,
-    realHeightCm,
-    volumenObjetivo
-);
+let fa =
+    funcionVolumen(
+        a,
+        geometria,
+        objetivo
+    );
+
+
+let fb =
+    funcionVolumen(
+        b,
+        geometria,
+        objetivo
+    );
+
 
 if (fa * fb > 0) {
 
-    return {
-        altura: null,
-        volumen: null,
-        iteraciones: 0,
-        error: null
-    };
+    return null;
 }
 
+
+const tolerancia =
+    0.0001;
+
+const maxIteraciones =
+    100;
+
+
 let x = 0;
-let error = Infinity;
-let iteracion = 0;
+
+let error =
+    Infinity;
+
+let iteraciones = 0;
+
 
 while (
     error > tolerancia &&
-    iteracion < maxIteraciones
+    iteraciones < maxIteraciones
 ) {
 
     x =
-        (a * fb - b * fa) /
-        (fb - fa);
+        (
+            a * fb -
+            b * fa
+        ) /
+        (
+            fb - fa
+        );
 
-    const fx = funcionVolumen(
-        x,
-        maxRadiusCm,
-        realHeightCm,
-        volumenObjetivo
-    );
 
-    error = valorAbsoluto(fx);
+    const fx =
+        funcionVolumen(
+            x,
+            geometria,
+            objetivo
+        );
 
-    if (fa * fx < 0) {
+
+    error =
+        valorAbsoluto(fx);
+
+
+    if (
+        fa * fx < 0
+    ) {
 
         b = x;
+
         fb = fx;
 
     } else {
 
         a = x;
+
         fa = fx;
     }
 
-    iteracion++;
+
+    iteraciones++;
+
 }
+
 
 return {
 
@@ -383,180 +1336,105 @@ return {
     volumen:
         calcularVolumenHastaAltura(
             x,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         ),
 
-    iteraciones: iteracion,
+    iteraciones: iteraciones,
 
     error: error
+
 };
 ```
 
 }
 
 /* ============================================================
-MÉTODO DE PUNTO FIJO
-g(h) = h - lambda * f(h)
+PUNTO FIJO
 ============================================================ */
 
 function metodoPuntoFijo(
-volumenObjetivo,
-maxRadiusCm,
-realHeightCm
-) {
-
-```
-let x = realHeightCm * 0.5;
-
-const tolerancia = 0.001;
-const maxIteraciones = 100;
-
-/*
-   Lambda pequeño para evitar saltos excesivos.
-*/
-const lambda = 0.01;
-
-let error = Infinity;
-let iteracion = 0;
-
-while (
-    error > tolerancia &&
-    iteracion < maxIteraciones
-) {
-
-    const fx = funcionVolumen(
-        x,
-        maxRadiusCm,
-        realHeightCm,
-        volumenObjetivo
-    );
-
-    let xNuevo = x - lambda * fx;
-
-    if (xNuevo < 0) {
-        xNuevo = 0;
-    }
-
-    if (xNuevo > realHeightCm) {
-        xNuevo = realHeightCm;
-    }
-
-    error =
-        valorAbsoluto(xNuevo - x);
-
-    x = xNuevo;
-
-    iteracion++;
-}
-
-const errorFuncion =
-    valorAbsoluto(
-        funcionVolumen(
-            x,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
-        )
-    );
-
-return {
-
-    altura: x,
-
-    volumen:
-        calcularVolumenHastaAltura(
-            x,
-            maxRadiusCm,
-            realHeightCm
-        ),
-
-    iteraciones: iteracion,
-
-    error: errorFuncion
-};
-```
-
-}
-
-/* ============================================================
-MÉTODO DE NEWTON-RAPHSON
-============================================================ */
-
-function metodoNewtonRaphson(
-volumenObjetivo,
-maxRadiusCm,
-realHeightCm
+objetivo,
+geometria
 ) {
 
 ```
 let x =
-    realHeightCm * 0.5;
+    geometria.realHeight / 2;
 
-const tolerancia = 0.001;
-const maxIteraciones = 100;
 
-const delta = 0.0001;
+const tolerancia =
+    0.0001;
 
-let error = Infinity;
-let iteracion = 0;
+const maxIteraciones =
+    100;
+
+
+/*
+ * g(x) = x - lambda*f(x)
+ */
+
+const lambda =
+    0.01;
+
+
+let error =
+    Infinity;
+
+let iteraciones = 0;
+
 
 while (
     error > tolerancia &&
-    iteracion < maxIteraciones
+    iteraciones < maxIteraciones
 ) {
 
     const fx =
         funcionVolumen(
             x,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+            geometria,
+            objetivo
         );
 
-    const fxDelta =
-        funcionVolumen(
-            x + delta,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+
+    let nuevoX =
+        x -
+        lambda * fx;
+
+
+    nuevoX =
+        Math.max(
+            0,
+            Math.min(
+                geometria.realHeight,
+                nuevoX
+            )
         );
 
-    const derivada =
-        (fxDelta - fx) / delta;
-
-    if (valorAbsoluto(derivada) < 1e-10) {
-        break;
-    }
-
-    let xNuevo =
-        x - fx / derivada;
-
-    if (xNuevo < 0) {
-        xNuevo = 0;
-    }
-
-    if (xNuevo > realHeightCm) {
-        xNuevo = realHeightCm;
-    }
 
     error =
-        valorAbsoluto(xNuevo - x);
+        valorAbsoluto(
+            nuevoX - x
+        );
 
-    x = xNuevo;
 
-    iteracion++;
+    x =
+        nuevoX;
+
+
+    iteraciones++;
+
 }
+
 
 const errorFuncion =
     valorAbsoluto(
         funcionVolumen(
             x,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+            geometria,
+            objetivo
         )
     );
+
 
 return {
 
@@ -565,97 +1443,250 @@ return {
     volumen:
         calcularVolumenHastaAltura(
             x,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         ),
 
-    iteraciones: iteracion,
+    iteraciones: iteraciones,
 
     error: errorFuncion
+
 };
 ```
 
 }
 
 /* ============================================================
-MÉTODO DE LA SECANTE
+NEWTON-RAPHSON
+============================================================ */
+
+function metodoNewtonRaphson(
+objetivo,
+geometria
+) {
+
+```
+let x =
+    geometria.realHeight / 2;
+
+
+const tolerancia =
+    0.0001;
+
+const maxIteraciones =
+    100;
+
+const delta =
+    0.00001;
+
+
+let error =
+    Infinity;
+
+let iteraciones = 0;
+
+
+while (
+    error > tolerancia &&
+    iteraciones < maxIteraciones
+) {
+
+    const fx =
+        funcionVolumen(
+            x,
+            geometria,
+            objetivo
+        );
+
+
+    const fxDelta =
+        funcionVolumen(
+            x + delta,
+            geometria,
+            objetivo
+        );
+
+
+    const derivada =
+        (
+            fxDelta - fx
+        ) /
+        delta;
+
+
+    if (
+        valorAbsoluto(
+            derivada
+        ) < 1e-10
+    ) {
+
+        break;
+    }
+
+
+    let nuevoX =
+        x -
+        fx / derivada;
+
+
+    nuevoX =
+        Math.max(
+            0,
+            Math.min(
+                geometria.realHeight,
+                nuevoX
+            )
+        );
+
+
+    error =
+        valorAbsoluto(
+            nuevoX - x
+        );
+
+
+    x =
+        nuevoX;
+
+
+    iteraciones++;
+
+}
+
+
+const errorFuncion =
+    valorAbsoluto(
+        funcionVolumen(
+            x,
+            geometria,
+            objetivo
+        )
+    );
+
+
+return {
+
+    altura: x,
+
+    volumen:
+        calcularVolumenHastaAltura(
+            x,
+            geometria
+        ),
+
+    iteraciones: iteraciones,
+
+    error: errorFuncion
+
+};
+```
+
+}
+
+/* ============================================================
+SECANTE
 ============================================================ */
 
 function metodoSecante(
-volumenObjetivo,
-maxRadiusCm,
-realHeightCm
+objetivo,
+geometria
 ) {
 
 ```
 let x0 =
-    realHeightCm * 0.4;
+    geometria.realHeight * 0.3;
 
 let x1 =
-    realHeightCm * 0.9;
+    geometria.realHeight * 0.8;
 
-const tolerancia = 0.001;
-const maxIteraciones = 100;
 
-let error = Infinity;
-let iteracion = 0;
+const tolerancia =
+    0.0001;
+
+const maxIteraciones =
+    100;
+
+
+let error =
+    Infinity;
+
+let iteraciones = 0;
+
 
 while (
     error > tolerancia &&
-    iteracion < maxIteraciones
+    iteraciones < maxIteraciones
 ) {
 
     const f0 =
         funcionVolumen(
             x0,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+            geometria,
+            objetivo
         );
+
 
     const f1 =
         funcionVolumen(
             x1,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+            geometria,
+            objetivo
         );
 
-    if (valorAbsoluto(f1 - f0) < 1e-10) {
+
+    if (
+        valorAbsoluto(
+            f1 - f0
+        ) < 1e-12
+    ) {
+
         break;
     }
 
+
     let x2 =
         x1 -
-        f1 * (x1 - x0) /
+        f1 *
+        (x1 - x0) /
         (f1 - f0);
 
-    if (x2 < 0) {
-        x2 = 0;
-    }
 
-    if (x2 > realHeightCm) {
-        x2 = realHeightCm;
-    }
+    x2 =
+        Math.max(
+            0,
+            Math.min(
+                geometria.realHeight,
+                x2
+            )
+        );
+
 
     error =
-        valorAbsoluto(x2 - x1);
+        valorAbsoluto(
+            x2 - x1
+        );
 
-    x0 = x1;
-    x1 = x2;
 
-    iteracion++;
+    x0 =
+        x1;
+
+    x1 =
+        x2;
+
+
+    iteraciones++;
+
 }
+
 
 const errorFuncion =
     valorAbsoluto(
         funcionVolumen(
             x1,
-            maxRadiusCm,
-            realHeightCm,
-            volumenObjetivo
+            geometria,
+            objetivo
         )
     );
+
 
 return {
 
@@ -664,13 +1695,13 @@ return {
     volumen:
         calcularVolumenHastaAltura(
             x1,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         ),
 
-    iteraciones: iteracion,
+    iteraciones: iteraciones,
 
     error: errorFuncion
+
 };
 ```
 
@@ -681,35 +1712,42 @@ GENERAR DATASET
 ============================================================ */
 
 function generarDataset(
-maxRadiusCm,
-realHeightCm
+geometria
 ) {
 
 ```
-const n = 12;
-
-const dz =
-    realHeightCm / n;
+const n = 20;
 
 const dataset = [];
 
-for (let i = 0; i <= n; i++) {
+
+for (
+    let i = 0;
+    i <= n;
+    i++
+) {
 
     const z =
-        i * dz;
+        (
+            geometria.realHeight /
+            n
+        ) * i;
+
 
     const r =
         radioEnAltura(
             z,
-            maxRadiusCm,
-            realHeightCm
+            geometria
         );
+
 
     dataset.push({
         z: z,
         r: r
     });
+
 }
+
 
 return dataset;
 ```
@@ -717,13 +1755,16 @@ return dataset;
 }
 
 /* ============================================================
-VOLUMEN TOTAL POR REGLA DEL TRAPECIO
+VOLUMEN TOTAL
 ============================================================ */
 
-function calcularVolumenTotal(dataset) {
+function calcularVolumenTotal(
+dataset
+) {
 
 ```
 let volumen = 0;
+
 
 for (
     let i = 0;
@@ -731,27 +1772,42 @@ for (
     i++
 ) {
 
-    const z0 = dataset[i].z;
-    const z1 = dataset[i + 1].z;
+    const z0 =
+        dataset[i].z;
 
-    const r0 = dataset[i].r;
-    const r1 = dataset[i + 1].r;
+    const z1 =
+        dataset[i + 1].z;
 
-    const deltaZ =
+
+    const r0 =
+        dataset[i].r;
+
+    const r1 =
+        dataset[i + 1].r;
+
+
+    const dz =
         z1 - z0;
+
 
     const area0 =
         PI_MANUAL *
         elevarAlCuadrado(r0);
 
+
     const area1 =
         PI_MANUAL *
         elevarAlCuadrado(r1);
 
+
     volumen +=
-        ((area0 + area1) / 2) *
-        deltaZ;
+        (
+            (area0 + area1) /
+            2
+        ) * dz;
+
 }
+
 
 return volumen;
 ```
@@ -759,10 +1815,12 @@ return volumen;
 }
 
 /* ============================================================
-MOSTRAR RESULTADOS
+MOSTRAR MÉTODOS
 ============================================================ */
 
-function mostrarResultadosMetodos(resultados) {
+function mostrarResultadosMetodos(
+resultados
+) {
 
 ```
 const tbody =
@@ -770,36 +1828,54 @@ const tbody =
         '#methodsTable tbody'
     );
 
+
 tbody.innerHTML = '';
 
-resultados.forEach(resultado => {
 
-    const row =
-        document.createElement('tr');
+resultados.forEach(
+    resultado => {
 
-    if (resultado.altura === null) {
+        const row =
+            document.createElement(
+                'tr'
+            );
+
+
+        if (!resultado) {
+
+            return;
+        }
+
 
         row.innerHTML = `
-            <td>${resultado.nombre}</td>
-            <td>No encontrado</td>
-            <td>-</td>
-            <td>${resultado.iteraciones}</td>
-            <td>-</td>
+
+            <td>
+                ${resultado.nombre}
+            </td>
+
+            <td>
+                ${resultado.altura.toFixed(4)}
+            </td>
+
+            <td>
+                ${resultado.volumen.toFixed(4)}
+            </td>
+
+            <td>
+                ${resultado.iteraciones}
+            </td>
+
+            <td>
+                ${resultado.error.toFixed(6)}
+            </td>
+
         `;
 
-    } else {
 
-        row.innerHTML = `
-            <td>${resultado.nombre}</td>
-            <td>${resultado.altura.toFixed(4)}</td>
-            <td>${resultado.volumen.toFixed(4)}</td>
-            <td>${resultado.iteraciones}</td>
-            <td>${resultado.error.toFixed(6)}</td>
-        `;
+        tbody.appendChild(row);
+
     }
-
-    tbody.appendChild(row);
-});
+);
 ```
 
 }
@@ -808,7 +1884,9 @@ resultados.forEach(resultado => {
 MOSTRAR DATASET
 ============================================================ */
 
-function mostrarDataset(dataset) {
+function mostrarDataset(
+dataset
+) {
 
 ```
 const tbody =
@@ -816,21 +1894,40 @@ const tbody =
         '#datasetTable tbody'
     );
 
+
 tbody.innerHTML = '';
 
-dataset.forEach((data, index) => {
 
-    const row =
-        document.createElement('tr');
+dataset.forEach(
+    (data, index) => {
 
-    row.innerHTML = `
-        <td>${index + 1}</td>
-        <td>${data.z.toFixed(2)}</td>
-        <td>${data.r.toFixed(2)}</td>
-    `;
+        const row =
+            document.createElement(
+                'tr'
+            );
 
-    tbody.appendChild(row);
-});
+
+        row.innerHTML = `
+
+            <td>
+                ${index + 1}
+            </td>
+
+            <td>
+                ${data.z.toFixed(2)}
+            </td>
+
+            <td>
+                ${data.r.toFixed(2)}
+            </td>
+
+        `;
+
+
+        tbody.appendChild(row);
+
+    }
+);
 ```
 
 }
@@ -841,16 +1938,23 @@ DIBUJAR SILUETA
 
 function dibujarSilueta(
 dataset,
-realHeightCm,
-maxRadiusCm
+geometria
 ) {
 
 ```
-const ancho = 600;
+const ancho = 650;
+
 const alto = 500;
 
-profileCanvas.width = ancho;
-profileCanvas.height = alto;
+const margen = 60;
+
+
+profileCanvas.width =
+    ancho;
+
+profileCanvas.height =
+    alto;
+
 
 profileCtx.clearRect(
     0,
@@ -859,22 +1963,44 @@ profileCtx.clearRect(
     alto
 );
 
-const margen = 60;
+
+const radioMaximo =
+    Math.max(
+        geometria.maxRadius,
+        0.1
+    );
+
 
 const escalaY =
-    (alto - 2 * margen) /
-    realHeightCm;
+    (
+        alto -
+        2 * margen
+    ) /
+    geometria.realHeight;
+
 
 const escalaX =
-    (ancho / 2 - margen) /
-    maxRadiusCm;
+    (
+        ancho / 2 -
+        margen
+    ) /
+    radioMaximo;
+
 
 const centroX =
     ancho / 2;
 
+
 /*
-   Eje vertical
-*/
+ * Eje central.
+ */
+
+profileCtx.strokeStyle =
+    '#777';
+
+profileCtx.lineWidth =
+    1;
+
 
 profileCtx.beginPath();
 
@@ -890,35 +2016,59 @@ profileCtx.lineTo(
 
 profileCtx.stroke();
 
+
 /*
-   Lado izquierdo
-*/
+ * Construir contorno.
+ */
 
 profileCtx.beginPath();
 
-for (let i = 0; i < dataset.length; i++) {
 
-    const punto = dataset[i];
+for (
+    let i = 0;
+    i < dataset.length;
+    i++
+) {
 
-    const x =
-        centroX -
-        punto.r * escalaX;
+    const punto =
+        dataset[i];
+
 
     const y =
         alto -
         margen -
-        punto.z * escalaY;
+        punto.z *
+        escalaY;
+
+
+    const x =
+        centroX -
+        punto.r *
+        escalaX;
+
 
     if (i === 0) {
-        profileCtx.moveTo(x, y);
+
+        profileCtx.moveTo(
+            x,
+            y
+        );
+
     } else {
-        profileCtx.lineTo(x, y);
+
+        profileCtx.lineTo(
+            x,
+            y
+        );
+
     }
+
 }
 
+
 /*
-   Lado derecho
-*/
+ * Regresar por el lado derecho.
+ */
 
 for (
     let i = dataset.length - 1;
@@ -926,86 +2076,118 @@ for (
     i--
 ) {
 
-    const punto = dataset[i];
+    const punto =
+        dataset[i];
 
-    const x =
-        centroX +
-        punto.r * escalaX;
 
     const y =
         alto -
         margen -
-        punto.z * escalaY;
+        punto.z *
+        escalaY;
 
-    profileCtx.lineTo(x, y);
+
+    const x =
+        centroX +
+        punto.r *
+        escalaX;
+
+
+    profileCtx.lineTo(
+        x,
+        y
+    );
+
 }
+
 
 profileCtx.closePath();
 
-profileCtx.stroke();
-
-/*
-   Relleno transparente
-*/
 
 profileCtx.fillStyle =
     'rgba(0, 123, 255, 0.15)';
 
 profileCtx.fill();
 
-/*
-   Dibujar nodos
-*/
 
-profileCtx.fillStyle =
+profileCtx.strokeStyle =
     '#007bff';
 
-dataset.forEach(punto => {
+profileCtx.lineWidth =
+    3;
 
-    const y =
-        alto -
-        margen -
-        punto.z * escalaY;
+profileCtx.stroke();
 
-    const xIzquierda =
-        centroX -
-        punto.r * escalaX;
-
-    const xDerecha =
-        centroX +
-        punto.r * escalaX;
-
-    profileCtx.beginPath();
-
-    profileCtx.arc(
-        xIzquierda,
-        y,
-        4,
-        0,
-        2 * PI_MANUAL
-    );
-
-    profileCtx.fill();
-
-    profileCtx.beginPath();
-
-    profileCtx.arc(
-        xDerecha,
-        y,
-        4,
-        0,
-        2 * PI_MANUAL
-    );
-
-    profileCtx.fill();
-});
 
 /*
-   Etiquetas
-*/
+ * Nodos.
+ */
 
-profileCtx.fillStyle = '#000';
-profileCtx.font = '14px Arial';
+profileCtx.fillStyle =
+    '#ff1744';
+
+
+dataset.forEach(
+    punto => {
+
+        const y =
+            alto -
+            margen -
+            punto.z *
+            escalaY;
+
+
+        const xIzquierda =
+            centroX -
+            punto.r *
+            escalaX;
+
+
+        const xDerecha =
+            centroX +
+            punto.r *
+            escalaX;
+
+
+        profileCtx.beginPath();
+
+        profileCtx.arc(
+            xIzquierda,
+            y,
+            3,
+            0,
+            2 * PI_MANUAL
+        );
+
+        profileCtx.fill();
+
+
+        profileCtx.beginPath();
+
+        profileCtx.arc(
+            xDerecha,
+            y,
+            3,
+            0,
+            2 * PI_MANUAL
+        );
+
+        profileCtx.fill();
+
+    }
+);
+
+
+/*
+ * Etiquetas.
+ */
+
+profileCtx.fillStyle =
+    '#ffffff';
+
+profileCtx.font =
+    '14px Arial';
+
 
 profileCtx.fillText(
     'Altura (cm)',
@@ -1013,269 +2195,12 @@ profileCtx.fillText(
     margen - 20
 );
 
+
 profileCtx.fillText(
     'Radio',
-    centroX + maxRadiusCm * escalaX,
-    alto - margen + 30
+    margen,
+    alto - 20
 );
-```
-
-}
-
-/* ============================================================
-CÁMARA
-============================================================ */
-
-btnStartCamera.addEventListener(
-'click',
-async () => {
-
-```
-    try {
-
-        stream =
-            await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: 'environment'
-                }
-            });
-
-        video.srcObject = stream;
-
-        video.style.display = 'block';
-        canvas.style.display = 'none';
-
-        btnCapture.disabled = false;
-
-    } catch (err) {
-
-        alert(
-            'Error al acceder a la cámara. ' +
-            'Asegúrate de permitir el acceso y utilizar HTTPS o localhost.'
-        );
-    }
-}
-```
-
-);
-
-/* ============================================================
-CAPTURA DE IMAGEN
-============================================================ */
-
-btnCapture.addEventListener(
-'click',
-() => {
-
-```
-    canvas.width =
-        video.videoWidth || 640;
-
-    canvas.height =
-        video.videoHeight || 480;
-
-    ctx.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-    if (stream) {
-
-        const tracks =
-            stream.getTracks();
-
-        for (
-            let i = 0;
-            i < tracks.length;
-            i++
-        ) {
-
-            tracks[i].stop();
-        }
-    }
-
-    video.style.display = 'none';
-    canvas.style.display = 'block';
-
-    btnCapture.disabled = true;
-
-    imageCaptured = true;
-
-    capturedImageObj =
-        new Image();
-
-    capturedImageObj.src =
-        canvas.toDataURL('image/png');
-}
-```
-
-);
-
-/* ============================================================
-SELECCIÓN DE LOS 3 PUNTOS
-============================================================ */
-
-canvas.addEventListener(
-'click',
-(e) => {
-
-```
-    if (!imageCaptured) {
-        return;
-    }
-
-    const rect =
-        canvas.getBoundingClientRect();
-
-    const scaleX =
-        canvas.width /
-        rect.width;
-
-    const scaleY =
-        canvas.height /
-        rect.height;
-
-    let x =
-        (e.clientX - rect.left) *
-        scaleX;
-
-    let y =
-        (e.clientY - rect.top) *
-        scaleY;
-
-    /*
-       El tercer punto se ajusta
-       automáticamente al borde.
-    */
-
-    if (calibrationPoints.length === 2) {
-
-        x =
-            snapToRealEdge(
-                x,
-                y
-            );
-    }
-
-    if (calibrationPoints.length < 3) {
-
-        calibrationPoints.push({
-            x: x,
-            y: y
-        });
-
-        redrawCanvas();
-
-        if (
-            calibrationPoints.length === 3
-        ) {
-
-            btnCalculate.disabled =
-                false;
-        }
-    }
-}
-```
-
-);
-
-/* ============================================================
-REDIBUJAR CANVAS
-============================================================ */
-
-function redrawCanvas() {
-
-```
-ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-);
-
-if (capturedImageObj) {
-
-    ctx.drawImage(
-        capturedImageObj,
-        0,
-        0
-    );
-}
-
-const labels = [
-    'Tapa',
-    'Base',
-    'Borde Max'
-];
-
-const colors = [
-    '#007bff',
-    '#007bff',
-    '#ff1744'
-];
-
-for (
-    let i = 0;
-    i < calibrationPoints.length;
-    i++
-) {
-
-    const pt =
-        calibrationPoints[i];
-
-    ctx.fillStyle =
-        colors[i];
-
-    ctx.beginPath();
-
-    ctx.arc(
-        pt.x,
-        pt.y,
-        7,
-        0,
-        2 * PI_MANUAL
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle = 'white';
-
-    ctx.font =
-        'bold 13px sans-serif';
-
-    ctx.fillText(
-        labels[i],
-        pt.x + 10,
-        pt.y + 4
-    );
-}
-
-if (
-    calibrationPoints.length >= 2
-) {
-
-    ctx.strokeStyle =
-        'rgba(0, 123, 255, 0.7)';
-
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        calibrationPoints[0].x,
-        calibrationPoints[0].y
-    );
-
-    ctx.lineTo(
-        calibrationPoints[1].x,
-        calibrationPoints[1].y
-    );
-
-    ctx.stroke();
-}
 ```
 
 }
@@ -1291,14 +2216,55 @@ btnReset.addEventListener(
 ```
     calibrationPoints = [];
 
+    imageCaptured = false;
+
+    capturedImageObj = null;
+
+
     btnCalculate.disabled =
         true;
 
+
+    btnCapture.disabled =
+        true;
+
+
+    if (stream) {
+
+        stream.getTracks().forEach(
+            track => track.stop()
+        );
+
+        stream = null;
+    }
+
+
+    video.srcObject = null;
+
+
+    video.style.display =
+        'none';
+
+    canvas.style.display =
+        'none';
+
+
     document.getElementById(
         'resultsCard'
-    ).style.display = 'none';
+    ).style.display =
+        'none';
 
-    redrawCanvas();
+
+    cameraStatus.textContent =
+        'Cámara detenida.';
+
+
+    cameraStatus.className =
+        'camera-status';
+
+
+    actualizarInstrucciones();
+
 }
 ```
 
@@ -1314,214 +2280,213 @@ btnCalculate.addEventListener(
 
 ```
     if (
-        calibrationPoints.length < 3
+        calibrationPoints.length !== 4
     ) {
-        return;
-    }
-
-    const realHeightCm =
-        parseFloat(
-            realHeightInput.value
-        ) || 21;
-
-    const volumenObjetivo =
-        parseFloat(
-            targetVolumeInput.value
-        ) || 250;
-
-    const topPt =
-        calibrationPoints[0];
-
-    const bottomPt =
-        calibrationPoints[1];
-
-    const maxRadiusPt =
-        calibrationPoints[2];
-
-    /*
-       Altura en píxeles
-    */
-
-    const pixelHeight =
-        valorAbsoluto(
-            bottomPt.y -
-            topPt.y
-        );
-
-    if (pixelHeight <= 0) {
 
         alert(
-            'La tapa debe estar por encima de la base.'
+            'Debes seleccionar exactamente 4 puntos.'
         );
 
         return;
     }
 
-    /*
-       Conversión píxeles/cm
-    */
 
-    const cmPerPixel =
-        realHeightCm /
-        pixelHeight;
+    try {
 
-    /*
-       Centro aproximado
-    */
+        const geometria =
+            obtenerGeometria();
 
-    const centerXPixel =
-        (topPt.x +
-         bottomPt.x) / 2;
 
-    /*
-       Radio máximo
-    */
+        if (
+            geometria.maxRadius <= 0 ||
+            geometria.minRadius <= 0
+        ) {
 
-    const maxRadiusCm =
-        valorAbsoluto(
-            maxRadiusPt.x -
-            centerXPixel
-        ) * cmPerPixel;
+            alert(
+                'Los radios obtenidos no son válidos. Revisa los puntos Borde Max y Borde Min.'
+            );
 
-    if (maxRadiusCm <= 0) {
+            return;
+        }
 
-        alert(
-            'El punto Borde Max debe estar separado del centro de la botella.'
+
+        const volumenObjetivo =
+            parseFloat(
+                targetVolumeInput.value
+            ) || 250;
+
+
+        /*
+         * Crear dataset.
+         */
+
+        const dataset =
+            generarDataset(
+                geometria
+            );
+
+
+        /*
+         * Volumen total.
+         */
+
+        const volumenTotal =
+            calcularVolumenTotal(
+                dataset
+            );
+
+
+        /*
+         * Métodos.
+         */
+
+        const resultados = [
+
+            {
+                nombre: 'Bisección',
+
+                resultado:
+                    metodoBiseccion(
+                        volumenObjetivo,
+                        geometria
+                    )
+            },
+
+            {
+                nombre: 'Falsa Posición',
+
+                resultado:
+                    metodoFalsaPosicion(
+                        volumenObjetivo,
+                        geometria
+                    )
+            },
+
+            {
+                nombre: 'Punto Fijo',
+
+                resultado:
+                    metodoPuntoFijo(
+                        volumenObjetivo,
+                        geometria
+                    )
+            },
+
+            {
+                nombre: 'Newton-Raphson',
+
+                resultado:
+                    metodoNewtonRaphson(
+                        volumenObjetivo,
+                        geometria
+                    )
+            },
+
+            {
+                nombre: 'Secante',
+
+                resultado:
+                    metodoSecante(
+                        volumenObjetivo,
+                        geometria
+                    )
+            }
+
+        ];
+
+
+        const resultadosFormateados =
+            resultados.map(
+                item => {
+
+                    if (!item.resultado) {
+                        return null;
+                    }
+
+
+                    return {
+
+                        nombre:
+                            item.nombre,
+
+                        ...item.resultado
+
+                    };
+
+                }
+            );
+
+
+        /*
+         * Mostrar resumen.
+         */
+
+        document.getElementById(
+            'volResult'
+        ).textContent =
+            volumenTotal.toFixed(2);
+
+
+        document.getElementById(
+            'pointsCount'
+        ).textContent =
+            dataset.length;
+
+
+        document.getElementById(
+            'targetResult'
+        ).textContent =
+            volumenObjetivo.toFixed(2);
+
+
+        /*
+         * Mostrar resultados.
+         */
+
+        mostrarResultadosMetodos(
+            resultadosFormateados
         );
 
-        return;
-    }
 
-    /*
-       Crear dataset
-    */
+        /*
+         * Mostrar dataset.
+         */
 
-    const dataset =
-        generarDataset(
-            maxRadiusCm,
-            realHeightCm
-        );
-
-    /*
-       Volumen total
-    */
-
-    const volumeCm3 =
-        calcularVolumenTotal(
+        mostrarDataset(
             dataset
         );
 
-    /*
-       Ejecutar métodos
-    */
 
-    const biseccion =
-        metodoBiseccion(
-            volumenObjetivo,
-            maxRadiusCm,
-            realHeightCm
+        /*
+         * Dibujar silueta.
+         */
+
+        dibujarSilueta(
+            dataset,
+            geometria
         );
 
-    const falsaPosicion =
-        metodoFalsaPosicion(
-            volumenObjetivo,
-            maxRadiusCm,
-            realHeightCm
+
+        /*
+         * Mostrar tarjeta.
+         */
+
+        document.getElementById(
+            'resultsCard'
+        ).style.display =
+            'block';
+
+    } catch (error) {
+
+        console.error(error);
+
+        alert(
+            'Ocurrió un error durante el cálculo: ' +
+            error.message
         );
 
-    const puntoFijo =
-        metodoPuntoFijo(
-            volumenObjetivo,
-            maxRadiusCm,
-            realHeightCm
-        );
+    }
 
-    const newton =
-        metodoNewtonRaphson(
-            volumenObjetivo,
-            maxRadiusCm,
-            realHeightCm
-        );
-
-    const secante =
-        metodoSecante(
-            volumenObjetivo,
-            maxRadiusCm,
-            realHeightCm
-        );
-
-    const resultados = [
-
-        {
-            nombre: 'Bisección',
-            ...biseccion
-        },
-
-        {
-            nombre: 'Falsa Posición',
-            ...falsaPosicion
-        },
-
-        {
-            nombre: 'Punto Fijo',
-            ...puntoFijo
-        },
-
-        {
-            nombre: 'Newton-Raphson',
-            ...newton
-        },
-
-        {
-            nombre: 'Secante',
-            ...secante
-        }
-    ];
-
-    /*
-       Mostrar resultados
-    */
-
-    document.getElementById(
-        'volResult'
-    ).textContent =
-        volumeCm3.toFixed(2);
-
-    document.getElementById(
-        'pointsCount'
-    ).textContent =
-        dataset.length;
-
-    document.getElementById(
-        'targetResult'
-    ).textContent =
-        volumenObjetivo.toFixed(2);
-
-    mostrarResultadosMetodos(
-        resultados
-    );
-
-    mostrarDataset(
-        dataset
-    );
-
-    /*
-       Dibujar silueta
-    */
-
-    dibujarSilueta(
-        dataset,
-        realHeightCm,
-        maxRadiusCm
-    );
-
-    /*
-       Mostrar tarjeta
-    */
-
-    document.getElementById(
-        'resultsCard'
-    ).style.display = 'block';
 }
 ```
 
