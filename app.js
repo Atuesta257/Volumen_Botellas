@@ -87,258 +87,57 @@ const pointColors = [
 CÁMARA
 ============================================================ */
 
-btnStartCamera.addEventListener(
-'click',
-async () => {
+btnStartCamera.addEventListener('click', async () => {
 
 ```
+console.log('BOTÓN DE CÁMARA PRESIONADO');
+
+try {
+
+    stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: 'environment'
+        }
+    });
+
+    console.log('CÁMARA OBTENIDA');
+
+    video.srcObject = stream;
+
+    video.style.display = 'block';
+    canvas.style.display = 'none';
+
+    btnCapture.disabled = false;
+
     cameraStatus.textContent =
-        'Solicitando acceso a la cámara...';
+        'Cámara activa. Puedes capturar la fotografía.';
 
     cameraStatus.className =
-        'camera-status';
-
-
-    /*
-     * Comprobar compatibilidad.
-     */
-
-    if (
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia
-    ) {
-
-        cameraStatus.textContent =
-            'Este navegador no permite acceder a la cámara mediante esta página.';
-
-        cameraStatus.className =
-            'camera-status error';
-
-        return;
-    }
-
-
-    /*
-     * GitHub Pages debe ejecutarse mediante HTTPS.
-     */
-
-    if (
-        location.protocol !== 'https:' &&
-        location.hostname !== 'localhost' &&
-        location.hostname !== '127.0.0.1'
-    ) {
-
-        cameraStatus.textContent =
-            'La página debe ejecutarse mediante HTTPS.';
-
-        cameraStatus.className =
-            'camera-status error';
-
-        return;
-    }
-
-
-    try {
-
-        /*
-         * Si existe una cámara anterior,
-         * detenerla.
-         */
-
-        if (stream) {
-
-            stream.getTracks().forEach(
-                track => track.stop()
-            );
-
-            stream = null;
-        }
-
-
-        /*
-         * Primero solicitamos cualquier cámara.
-         *
-         * Esto es más compatible con celulares
-         * que solicitar directamente environment.
-         */
-
-        stream =
-            await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: false
-            });
-
-
-        /*
-         * Asignar la cámara al elemento VIDEO.
-         */
-
-        video.srcObject =
-            stream;
-
-
-        video.style.display =
-            'block';
-
-        canvas.style.display =
-            'none';
-
-
-        /*
-         * Esperar a que el navegador
-         * cargue el vídeo.
-         */
-
-        await new Promise(
-            resolve => {
-
-                if (
-                    video.readyState >= 2
-                ) {
-
-                    resolve();
-
-                } else {
-
-                    video.onloadedmetadata =
-                        () => resolve();
-
-                }
-
-            }
-        );
-
-
-        await video.play();
-
-
-        /*
-         * Intentar seleccionar la cámara trasera.
-         */
-
-        const track =
-            stream.getVideoTracks()[0];
-
-
-        if (track) {
-
-            try {
-
-                await track.applyConstraints({
-
-                    facingMode: {
-                        ideal: 'environment'
-                    }
-
-                });
-
-            } catch (error) {
-
-                console.log(
-                    'No se pudo seleccionar automáticamente la cámara trasera:',
-                    error
-                );
-
-            }
-
-        }
-
-
-        btnCapture.disabled =
-            false;
-
-
-        cameraStatus.textContent =
-            'Cámara activa. Ahora puedes capturar la fotografía.';
-
-        cameraStatus.className =
-            'camera-status success-status';
-
-
-    } catch (error) {
-
-        console.error(
-            'Error al iniciar la cámara:',
-            error
-        );
-
-
-        let mensaje =
-            'No se pudo acceder a la cámara. ';
-
-
-        switch (error.name) {
-
-            case 'NotAllowedError':
-
-                mensaje +=
-                    'El permiso de cámara fue rechazado. Revisa los permisos del navegador.';
-
-                break;
-
-
-            case 'NotFoundError':
-
-                mensaje +=
-                    'El celular no encontró ninguna cámara.';
-
-                break;
-
-
-            case 'NotReadableError':
-
-                mensaje +=
-                    'La cámara está siendo utilizada por otra aplicación.';
-
-                break;
-
-
-            case 'OverconstrainedError':
-
-                mensaje +=
-                    'La configuración solicitada para la cámara no es compatible.';
-
-                break;
-
-
-            case 'SecurityError':
-
-                mensaje +=
-                    'El navegador bloqueó el acceso a la cámara por seguridad.';
-
-                break;
-
-
-            case 'AbortError':
-
-                mensaje +=
-                    'El acceso a la cámara fue interrumpido.';
-
-                break;
-
-
-            default:
-
-                mensaje +=
-                    error.message ||
-                    'Error desconocido.';
-
-                break;
-        }
-
-
-        cameraStatus.textContent =
-            mensaje;
-
-        cameraStatus.className =
-            'camera-status error';
-
-    }
-
+        'camera-status success-status';
+
+} catch (err) {
+
+    console.error(
+        'ERROR DE CÁMARA:',
+        err
+    );
+
+    cameraStatus.textContent =
+        'Error al acceder a la cámara: ' +
+        err.name;
+
+    cameraStatus.className =
+        'camera-status error';
+
+    alert(
+        'No se pudo acceder a la cámara.\n\n' +
+        'Error: ' +
+        err.name
+    );
 }
 ```
 
-);
+});
 
 
 /* ============================================================
