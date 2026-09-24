@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -28,7 +27,7 @@
                     id="targetVolume"
                     value="250"
                     step="10"
-                    min="0"
+                    min="1"
                     placeholder="Ej: 250, 500, 1000"
                 >
             </div>
@@ -62,15 +61,17 @@
         <!-- VISOR -->
         <div class="viewer-card">
 
-            <video id="video" autoplay playsinline style="display: none;"></video>
+            <!-- Video streaming en vivo -->
+            <video id="video" autoplay playsinline style="display: none; max-width: 100%; height: auto;"></video>
 
-            <canvas id="canvas" style="display: none;"></canvas>
+            <!-- Captura estática y marcado de puntos de calibración -->
+            <canvas id="canvas" style="display: none; max-width: 100%; height: auto; cursor: crosshair;"></canvas>
 
             <div id="pointStatus" class="point-status">
-                Puntos seleccionados: 0 / 4
+                Presiona 'Iniciar cámara' para comenzar.
             </div>
 
-            <button id="btnCalculate" class="btn success" disabled>
+            <button id="btnCalculate" class="btn success">
                 Calcular Volumen
             </button>
 
@@ -152,8 +153,8 @@
 
     </div>
 
+    <!-- Asegúrate de que tu archivo de JavaScript tenga exactamente este nombre o cámbialo aquí -->
     <script src="app.js"></script>
 
 </body>
 </html>
-```
