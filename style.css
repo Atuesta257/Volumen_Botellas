@@ -1,75 +1,269 @@
+* {
+  box-sizing: border-box;
+  }
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #121212;
-    color: #ffffff;
-    margin: 0;
-    padding: 15px;
+font-family: Arial, sans-serif;
+background-color: #121212;
+color: #ffffff;
+margin: 0;
+padding: 15px;
 }
 
 .container {
-    max-width: 600px;
-    margin: 0 auto;
+max-width: 900px;
+margin: 0 auto;
 }
 
-.card, .controls-card, .viewer-card {
-    background-color: #1e1e1e;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
+.card,
+.controls-card,
+.viewer-card {
+background-color: #1e1e1e;
+border-radius: 8px;
+padding: 15px;
+margin-bottom: 15px;
+}
+
+h1,
+h2,
+h3 {
+margin-top: 0;
+}
+
+h1 {
+text-align: center;
+margin-bottom: 20px;
+}
+
+h3 {
+margin-top: 25px;
+}
+
+/* ============================================================
+INPUTS
+============================================================ */
+
+.input-group {
+display: inline-flex;
+flex-direction: column;
+margin-right: 20px;
+margin-bottom: 10px;
+}
+
+.input-group label {
+margin-bottom: 5px;
+font-weight: bold;
 }
 
 input[type="number"] {
-    width: 80px;
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #444;
-    background-color: #2a2a2a;
-    color: #fff;
+width: 120px;
+padding: 8px;
+border-radius: 4px;
+border: 1px solid #444;
+background-color: #2a2a2a;
+color: #fff;
 }
 
+/* ============================================================
+BOTONES
+============================================================ */
+
 .button-group {
-    display: flex;
-    gap: 10px;
-    margin-top: 10px;
-    flex-wrap: wrap;
+display: flex;
+gap: 10px;
+margin-top: 10px;
+flex-wrap: wrap;
 }
 
 .btn {
-    padding: 10px 15px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    color: white;
+padding: 10px 15px;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+font-weight: bold;
+color: white;
 }
 
-.btn.primary { background-color: #007bff; }
-.btn.secondary { background-color: #6c757d; }
-.btn.danger { background-color: #dc3545; }
-.btn.success { background-color: #28a745; width: 100%; margin-top: 10px; }
+.btn.primary {
+background-color: #007bff;
+}
+
+.btn.secondary {
+background-color: #6c757d;
+}
+
+.btn.danger {
+background-color: #dc3545;
+}
+
+.btn.success {
+background-color: #28a745;
+width: 100%;
+margin-top: 15px;
+}
+
+.btn:hover:not(:disabled) {
+filter: brightness(1.15);
+}
 
 .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+opacity: 0.5;
+cursor: not-allowed;
 }
 
-canvas, video {
-    width: 100%;
-    max-width: 100%;
-    border-radius: 6px;
-    display: block;
+/* ============================================================
+ESTADO DE CÁMARA
+============================================================ */
+
+.camera-status {
+margin-top: 12px;
+padding: 10px;
+border-radius: 5px;
+background-color: #2a2a2a;
+color: #ccc;
+font-size: 14px;
+}
+
+.camera-status.success-status {
+background-color: #163d24;
+color: #7ee2a8;
+}
+
+.camera-status.error {
+background-color: #451c1c;
+color: #ff8585;
+}
+
+/* ============================================================
+INSTRUCCIONES
+============================================================ */
+
+.instructions {
+margin-top: 12px;
+padding: 12px;
+border-radius: 5px;
+background-color: #292929;
+text-align: center;
+font-weight: bold;
+color: #ddd;
+}
+
+/* ============================================================
+VIDEO Y CANVAS
+============================================================ */
+
+canvas,
+video {
+width: 100%;
+max-width: 100%;
+border-radius: 6px;
+display: block;
+}
+
+#canvas {
+cursor: crosshair;
+}
+
+/* ============================================================
+RESUMEN
+============================================================ */
+
+.summary-box {
+background-color: #292929;
+border-radius: 6px;
+padding: 12px;
+margin-bottom: 15px;
+}
+
+.summary-box p {
+margin: 8px 0;
+}
+
+/* ============================================================
+TABLAS
+============================================================ */
+
+.table-container {
+width: 100%;
+overflow-x: auto;
 }
 
 table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+width: 100%;
+border-collapse: collapse;
+margin-top: 10px;
+min-width: 650px;
 }
 
-th, td {
-    border: 1px solid #333;
+th,
+td {
+border: 1px solid #333;
+padding: 8px;
+text-align: center;
+}
+
+th {
+background-color: #2c2c2c;
+}
+
+tbody tr:nth-child(even) {
+background-color: #242424;
+}
+
+/* ============================================================
+GRÁFICA
+============================================================ */
+
+.graph-container {
+width: 100%;
+overflow-x: auto;
+background-color: #151515;
+border-radius: 6px;
+padding: 10px;
+}
+
+#profileCanvas {
+width: 100%;
+max-width: 650px;
+height: auto;
+margin: 0 auto;
+}
+
+/* ============================================================
+RESPONSIVE
+============================================================ */
+
+@media (max-width: 600px) {
+
+```
+body {
     padding: 8px;
-    text-align: center;
 }
 
-th { background-color: #2c2c2c; }
+.container {
+    width: 100%;
+}
+
+.input-group {
+    width: 100%;
+    margin-right: 0;
+}
+
+input[type="number"] {
+    width: 100%;
+}
+
+.button-group {
+    flex-direction: column;
+}
+
+.btn {
+    width: 100%;
+}
+
+table {
+    font-size: 13px;
+}
+```
+
+}
