@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reto Volumen Botella</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+```
+<div class="container">
+    <h1>Cálculo de Volumen Numérico</h1>
+
+    <div class="controls-card">
+
+        <div class="input-group">
+            <label for="realHeight">Altura real (cm):</label>
+            <input type="number" id="realHeight" value="21" step="0.1">
+        </div>
+
+        <div class="input-group">
+            <label for="targetVolume">Volumen Objetivo (mL):</label>
+            <input type="number" id="targetVolume" value="250" step="10">
+        </div>
+
+        <div class="button-group">
+            <button id="btnStartCamera" class="btn primary">
+                Iniciar Cámara
+            </button>
+
+            <button id="btnCapture" class="btn secondary" disabled>
+                Capturar Foto
+            </button>
+
+            <button id="btnReset" class="btn danger">
+                Reiniciar Puntos
+            </button>
+        </div>
+
+    </div>
+
+    <div class="viewer-card">
+
+        <video id="video" autoplay playsinline style="display: none;"></video>
+
+        <canvas id="canvas" style="display: none;"></canvas>
+
+        <button id="btnCalculate" class="btn success" disabled>
+            Calcular Volumen
+        </button>
+
+    </div>
+
+    <div id="resultsCard" class="card" style="display: none;">
+
+        <h2>Resultados del Cálculo Numérico</h2>
+
+        <div class="summary-box">
+
+            <p>
+                <strong>Volumen Total Estimado:</strong>
+                <span id="volResult">0</span> mL
+            </p>
+
+            <p>
+                <strong>Nodos Evaluados:</strong>
+                <span id="pointsCount">0</span>
+            </p>
+
+            <p>
+                <strong>Volumen Objetivo:</strong>
+                <span id="targetResult">0</span> mL
+            </p>
+
+        </div>
+
+        <h3>Resultados de los métodos numéricos</h3>
+
+        <table id="methodsTable">
+            <thead>
+                <tr>
+                    <th>Método</th>
+                    <th>Altura encontrada (cm)</th>
+                    <th>Volumen (mL)</th>
+                    <th>Iteraciones</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+
+            <tbody></tbody>
+        </table>
+
+        <h3>Silueta aproximada de la botella</h3>
+
+        <div class="graph-container">
+            <canvas id="profileCanvas"></canvas>
+        </div>
+
+        <h3>Dataset Extraído (zᵢ, rᵢ)</h3>
+
+        <table id="datasetTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Altura zᵢ (cm)</th>
+                    <th>Radio rᵢ (cm)</th>
+                </tr>
+            </thead>
+
+            <tbody></tbody>
+        </table>
+
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+```
+
+</body>
+</html>
