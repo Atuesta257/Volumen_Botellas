@@ -1,3 +1,4 @@
+```javascript
 // =============================================================
 // REFERENCIAS AL DOM
 // =============================================================
@@ -6,276 +7,196 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-const btnStartCamera =
-    document.getElementById('btnStartCamera');
+const btnStartCamera = document.getElementById('btnStartCamera');
+const btnCapture = document.getElementById('btnCapture');
+const btnReset = document.getElementById('btnReset');
+const btnCalculate = document.getElementById('btnCalculate');
 
-const btnCapture =
-    document.getElementById('btnCapture');
+const realHeightInput = document.getElementById('realHeight');
+const targetVolumeInput = document.getElementById('targetVolume');
 
-const btnReset =
-    document.getElementById('btnReset');
-
-const btnCalculate =
-    document.getElementById('btnCalculate');
-
-const realHeightInput =
-    document.getElementById('realHeight');
-
-const targetVolumeInput =
-    document.getElementById('targetVolume');
-
-const pointInstructions =
-    document.getElementById('pointInstructions');
-
-
-// =============================================================
-// VARIABLES
-// =============================================================
+const pointStatus = document.getElementById('pointStatus');
 
 let stream = null;
-
 let calibrationPoints = [];
-
 let imageCaptured = false;
-
 let capturedImageObj = null;
-
-
-// =============================================================
-// CONSTANTE PI
-// =============================================================
 
 const PI = Math.PI;
 
 
 // =============================================================
-// FUNCIONES MATEMÁTICAS AUXILIARES
+// CONFIGURACIÓN
 // =============================================================
 
-function cuadrado(valor) {
-    return valor * valor;
-}
-
-
-function valorAbsoluto(valor) {
-    return valor < 0 ? -valor : valor;
-}
+const NODOS_PERFIL = 30;
+const NODOS_DATASET = 60;
+const TOLERANCIA = 1e-4;
+const MAX_ITERACIONES = 100;
 
 
 // =============================================================
-// 1. EXTRACCIÓN DEL PERFIL DE LA BOTELLA
+// 1. EXTRACCIÓN DEL PERFIL
 // =============================================================
 
 function extraerPerfilRealDeImagen(
     topPt,
     bottomPt,
+    realHeightCm,
     maxRadiusPt,
-    minRadiusPt,
-    realHeightCm
+    minRadiusPt
 ) {
 
-    const n = 30;
+    const n = NODOS_PERFIL;
 
-    const alturaPixel =
-        valorAbsoluto(bottomPt.y - topPt.y);
+    const alturaPixel = Math.abs(bottomPt.y - topPt.y);
 
-    const cmPerPixel =
-        realHeightCm / alturaPixel;
+    if (alturaPixel <= 0) {
+        throw new Error("La tapa y la base deben tener diferente posición vertical.");
+    }
 
-    const centerXPixel =
-        (topPt.x + bottomPt.x) / 2;
+    const cmPerPixel = realHeightCm / alturaPixel;
 
+    const centerXPixel = (topPt.x + bottomPt.x) / 2;
 
-    // Radio máximo indicado por el usuario
+    const maxRadiusPx = Math.abs(maxRadiusPt.x - centerXPixel);
 
-    const maxRadiusPx =
-        valorAbsoluto(
-            maxRadiusPt.x - centerXPixel
-        );
+    const minRadiusPx = Math.abs(minRadiusPt.x - centerXPixel);
 
-
-    // Radio mínimo indicado por el usuario
-
-    const minRadiusPx =
-        valorAbsoluto(
-            minRadiusPt.x - centerXPixel
-        );
-
-
-    const maxRadiusCm =
-        maxRadiusPx * cmPerPixel;
-
-
-    const minRadiusCm =
-        minRadiusPx * cmPerPixel;
-
+    const maxRadiusCm = maxRadiusPx * cmPerPixel;
+    const minRadiusCm = minRadiusPx * cmPerPixel;
 
     let rawNodes = [];
 
-
     for (let i = 0; i <= n; i++) {
-
-        // Altura en centímetros
-
-        const z =
-            i * (realHeightCm / n);
-
-
-        // Posición vertical en la fotografía
-
-        const porcentaje =
-            i / n;
 
         const currentY =
             bottomPt.y -
-            porcentaje *
-            (bottomPt.y - topPt.y);
+            (i * (bottomPt.y - topPt.y) / n);
 
+        const z_i =
+            i * (realHeightCm / n);
 
-        let detectedRadiusPx =
-            maxRadiusPx;
+        let detectedRadiusPx = maxRadiusPx;
 
-
-        // -----------------------------------------------------
-        // Buscar borde derecho
-        // -----------------------------------------------------
-
-        const searchWidth =
-            Math.max(
-                10,
-                Math.floor(maxRadiusPx * 1.4)
-            );
-
+        const searchWidth = Math.max(
+            10,
+            Math.floor(maxRadiusPx * 1.3)
+        );
 
         try {
 
-            const startX =
-                Math.max(
-                    0,
-                    Math.floor(centerXPixel)
-                );
+            const imgDataRight = ctx.getImageData(
+                Math.floor(centerXPixel),
+                Math.floor(currentY),
+                searchWidth,
+                1
+            ).data;
 
-
-            const imgData =
-                ctx.getImageData(
-                    startX,
-                    Math.floor(currentY),
-                    Math.min(
-                        searchWidth,
-                        canvas.width - startX
-                    ),
-                    1
-                ).data;
-
-
-            let maxGradient = 0;
-
-            let bestOffset =
-                detectedRadiusPx;
-
+            let maxGrad = 0;
+            let bestOffset = detectedRadiusPx;
 
             for (
                 let px = 4;
-                px < imgData.length - 8;
+                px < imgDataRight.length - 8;
                 px += 4
             ) {
 
                 const b1 =
                     (
-                        imgData[px] +
-                        imgData[px + 1] +
-                        imgData[px + 2]
+                        imgDataRight[px] +
+                        imgDataRight[px + 1] +
+                        imgDataRight[px + 2]
                     ) / 3;
-
 
                 const b2 =
                     (
-                        imgData[px + 4] +
-                        imgData[px + 5] +
-                        imgData[px + 6]
+                        imgDataRight[px + 4] +
+                        imgDataRight[px + 5] +
+                        imgDataRight[px + 6]
                     ) / 3;
 
+                const grad = Math.abs(b2 - b1);
 
-                const gradient =
-                    valorAbsoluto(
-                        b2 - b1
-                    );
-
-
-                if (gradient > maxGradient) {
-
-                    maxGradient =
-                        gradient;
-
-                    bestOffset =
-                        px / 4;
-
+                if (grad > maxGrad) {
+                    maxGrad = grad;
+                    bestOffset = px / 4;
                 }
-
             }
 
-
-            if (maxGradient > 10) {
-
-                detectedRadiusPx =
-                    bestOffset;
-
+            if (maxGrad > 10) {
+                detectedRadiusPx = bestOffset;
             }
 
         } catch (error) {
-
-            detectedRadiusPx =
-                maxRadiusPx;
-
+            // Se utiliza el radio máximo como respaldo.
         }
 
+        let r_i = detectedRadiusPx * cmPerPixel;
 
-        // -----------------------------------------------------
-        // Limitaciones utilizando los puntos de calibración
-        // -----------------------------------------------------
+        const limiteSuperior = maxRadiusCm * 1.08;
+        const limiteInferior = Math.max(
+            minRadiusCm * 0.90,
+            maxRadiusCm * 0.10
+        );
 
-        if (detectedRadiusPx > maxRadiusPx) {
-
-            detectedRadiusPx =
-                maxRadiusPx;
-
-        }
-
-
-        if (detectedRadiusPx < minRadiusPx) {
-
-            detectedRadiusPx =
-                minRadiusPx;
-
-        }
-
-
-        const radiusCm =
-            detectedRadiusPx *
-            cmPerPixel;
-
+        r_i = Math.min(r_i, limiteSuperior);
+        r_i = Math.max(r_i, limiteInferior);
 
         rawNodes.push({
-
-            z: z,
-
-            r: radiusCm
-
+            z: z_i,
+            r: r_i
         });
-
     }
 
 
+    // ---------------------------------------------------------
+    // Incorporar explícitamente los puntos de radio máximo
+    // y mínimo como nodos del perfil.
+    // ---------------------------------------------------------
+
+    const zMax =
+        Math.abs(bottomPt.y - maxRadiusPt.y) * cmPerPixel;
+
+    const zMin =
+        Math.abs(bottomPt.y - minRadiusPt.y) * cmPerPixel;
+
+    rawNodes.push({
+        z: Math.max(0, Math.min(realHeightCm, zMax)),
+        r: maxRadiusCm
+    });
+
+    rawNodes.push({
+        z: Math.max(0, Math.min(realHeightCm, zMin)),
+        r: minRadiusCm
+    });
+
+
+    // ---------------------------------------------------------
+    // Ordenar por altura y eliminar duplicados
+    // ---------------------------------------------------------
+
+    rawNodes.sort((a, b) => a.z - b.z);
+
+    const nodosOrdenados = [];
+
+    rawNodes.forEach(nodo => {
+
+        const ultimo =
+            nodosOrdenados[nodosOrdenados.length - 1];
+
+        if (!ultimo || Math.abs(ultimo.z - nodo.z) > 0.0001) {
+            nodosOrdenados.push(nodo);
+        }
+    });
+
     return {
-
-        rawNodes,
-
+        rawNodes: nodosOrdenados,
+        minRadiusCm,
         maxRadiusCm,
-
-        minRadiusCm
-
+        zMin,
+        zMax
     };
-
 }
 
 
@@ -285,208 +206,123 @@ function extraerPerfilRealDeImagen(
 
 function calcularSplineCubico(nodes) {
 
-    const n =
-        nodes.length - 1;
+    const n = nodes.length - 1;
 
+    let a = nodes.map(p => p.r);
 
-    const a =
-        nodes.map(
-            punto => punto.r
-        );
+    let h = [];
 
+    for (let i = 0; i < n; i++) {
+        h[i] = nodes[i + 1].z - nodes[i].z;
 
-    const h = [];
-
-    for (
-        let i = 0;
-        i < n;
-        i++
-    ) {
-
-        h[i] =
-            nodes[i + 1].z -
-            nodes[i].z;
-
+        if (h[i] <= 0) {
+            h[i] = 0.000001;
+        }
     }
 
+    let alpha = new Array(n + 1).fill(0);
 
-    const alpha =
-        new Array(n + 1).fill(0);
-
-
-    for (
-        let i = 1;
-        i < n;
-        i++
-    ) {
+    for (let i = 1; i < n; i++) {
 
         alpha[i] =
             (3 / h[i]) *
-            (a[i + 1] - a[i]) -
+            (a[i + 1] - a[i])
+            -
             (3 / h[i - 1]) *
             (a[i] - a[i - 1]);
-
     }
 
-
-    const l =
-        new Array(n + 1).fill(0);
-
-    const mu =
-        new Array(n + 1).fill(0);
-
-    const z =
-        new Array(n + 1).fill(0);
-
+    let l = new Array(n + 1).fill(0);
+    let mu = new Array(n + 1).fill(0);
+    let z = new Array(n + 1).fill(0);
 
     l[0] = 1;
 
-
-    for (
-        let i = 1;
-        i < n;
-        i++
-    ) {
+    for (let i = 1; i < n; i++) {
 
         l[i] =
             2 *
-            (
-                nodes[i + 1].z -
-                nodes[i - 1].z
-            ) -
-            h[i - 1] *
-            mu[i - 1];
+            (nodes[i + 1].z - nodes[i - 1].z)
+            -
+            h[i - 1] * mu[i - 1];
 
+        if (Math.abs(l[i]) < 1e-12) {
+            l[i] = 1e-12;
+        }
 
-        mu[i] =
-            h[i] /
-            l[i];
-
+        mu[i] = h[i] / l[i];
 
         z[i] =
-            (
-                alpha[i] -
-                h[i - 1] *
-                z[i - 1]
-            ) /
+            (alpha[i] - h[i - 1] * z[i - 1]) /
             l[i];
-
     }
 
-
     l[n] = 1;
+    z[n] = 0;
 
+    let c = new Array(n + 1).fill(0);
+    let b = new Array(n).fill(0);
+    let d = new Array(n).fill(0);
 
-    const c =
-        new Array(n + 1).fill(0);
-
-    const b =
-        new Array(n).fill(0);
-
-    const d =
-        new Array(n).fill(0);
-
-
-    for (
-        let j = n - 1;
-        j >= 0;
-        j--
-    ) {
+    for (let j = n - 1; j >= 0; j--) {
 
         c[j] =
             z[j] -
-            mu[j] *
-            c[j + 1];
-
+            mu[j] * c[j + 1];
 
         b[j] =
-            (
-                a[j + 1] -
-                a[j]
-            ) /
-            h[j] -
+            (a[j + 1] - a[j]) / h[j]
+            -
             h[j] *
-            (
-                c[j + 1] +
-                2 * c[j]
-            ) /
-            3;
-
+            (c[j + 1] + 2 * c[j]) / 3;
 
         d[j] =
-            (
-                c[j + 1] -
-                c[j]
-            ) /
+            (c[j + 1] - c[j]) /
             (3 * h[j]);
-
     }
 
 
-    return function(zEval) {
+    return function (zEval) {
 
-        if (
-            zEval <=
-            nodes[0].z
-        ) {
-
+        if (zEval <= nodes[0].z) {
             return nodes[0].r;
-
         }
 
-
-        if (
-            zEval >=
-            nodes[n].z
-        ) {
-
+        if (zEval >= nodes[n].z) {
             return nodes[n].r;
-
         }
-
 
         let i = 0;
 
-
-        for (
-            let j = 0;
-            j < n;
-            j++
-        ) {
+        for (let j = 0; j < n; j++) {
 
             if (
                 zEval >= nodes[j].z &&
                 zEval <= nodes[j + 1].z
             ) {
-
                 i = j;
-
                 break;
-
             }
-
         }
 
-
         const dx =
-            zEval -
-            nodes[i].z;
-
+            zEval - nodes[i].z;
 
         return (
-            a[i] +
-            b[i] * dx +
-            c[i] * cuadrado(dx) +
+            a[i]
+            +
+            b[i] * dx
+            +
+            c[i] * dx * dx
+            +
             d[i] * dx * dx * dx
         );
-
     };
-
 }
 
 
 // =============================================================
-// 3. INTEGRACIÓN DE SIMPSON 1/3
+// 3. INTEGRACIÓN SIMPSON 1/3
 // =============================================================
 
 function integrarSimpson(
@@ -496,65 +332,40 @@ function integrarSimpson(
     numIntervalos = 80
 ) {
 
-    if (
-        zMin >= zMax
-    ) {
-
+    if (zMin >= zMax) {
         return 0;
-
     }
 
-
-    if (
-        numIntervalos % 2 !== 0
-    ) {
-
+    if (numIntervalos % 2 !== 0) {
         numIntervalos++;
-
     }
-
 
     const h =
         (zMax - zMin) /
         numIntervalos;
 
-
     let suma =
-        cuadrado(
-            rFunc(zMin)
-        ) +
-        cuadrado(
-            rFunc(zMax)
-        );
+        Math.pow(rFunc(zMin), 2)
+        +
+        Math.pow(rFunc(zMax), 2);
 
-
-    for (
-        let i = 1;
-        i < numIntervalos;
-        i++
-    ) {
+    for (let i = 1; i < numIntervalos; i++) {
 
         const z =
-            zMin +
-            i * h;
+            zMin + i * h;
 
-
-        const radio =
-            rFunc(z);
-
+        const r = Math.max(
+            0,
+            rFunc(z)
+        );
 
         const factor =
-            i % 2 === 0
-                ? 2
-                : 4;
-
+            i % 2 === 0 ? 2 : 4;
 
         suma +=
             factor *
-            cuadrado(radio);
-
+            Math.pow(r, 2);
     }
-
 
     return (
         PI *
@@ -562,17 +373,16 @@ function integrarSimpson(
         3 *
         suma
     );
-
 }
 
 
 // =============================================================
-// FUNCIÓN OBJETIVO
+// 4. FUNCIÓN OBJETIVO
 // =============================================================
 
 function fObjetivo(
     h,
-    volumenObjetivo,
+    vObjetivo,
     rFunc
 ) {
 
@@ -580,694 +390,605 @@ function fObjetivo(
         integrarSimpson(
             rFunc,
             0,
-            h
-        ) -
-        volumenObjetivo
+            h,
+            80
+        )
+        -
+        vObjetivo
     );
-
 }
 
 
 // =============================================================
-// FUNCIÓN PARA CALCULAR EL ERROR
+// 5. RESULTADO ESTANDARIZADO
 // =============================================================
 
-function calcularResiduo(
+function crearResultado(
+    nombre,
     altura,
-    volumenObjetivo,
-    rFunc
+    iteraciones,
+    rFunc,
+    vObjetivo,
+    maxH,
+    convergio,
+    mensaje
 ) {
 
-    return valorAbsoluto(
-        fObjetivo(
-            altura,
-            volumenObjetivo,
-            rFunc
-        )
+    altura = Math.max(
+        0,
+        Math.min(maxH, altura)
     );
 
+    const volumen =
+        integrarSimpson(
+            rFunc,
+            0,
+            altura,
+            80
+        );
+
+    const error =
+        Math.abs(volumen - vObjetivo);
+
+    return {
+        metodo: nombre,
+        altura,
+        radio: Math.max(0, rFunc(altura)),
+        volumen,
+        error,
+        iter: iteraciones,
+        convergio,
+        mensaje
+    };
 }
 
 
 // =============================================================
-// 4. MÉTODO DE BISECCIÓN
+// 6. BISECCIÓN
 // =============================================================
 
 function metodoBiseccion(
-    volumenObjetivo,
+    vObjetivo,
     rFunc,
     maxH,
-    tol = 0.0001,
-    maxIter = 100
+    tol = TOLERANCIA,
+    maxIter = MAX_ITERACIONES
 ) {
 
     let a = 0;
-
     let b = maxH;
 
     let fa =
-        fObjetivo(
-            a,
-            volumenObjetivo,
-            rFunc
-        );
+        fObjetivo(a, vObjetivo, rFunc);
 
     let fb =
-        fObjetivo(
-            b,
-            volumenObjetivo,
-            rFunc
+        fObjetivo(b, vObjetivo, rFunc);
+
+    if (fa === 0) {
+        return crearResultado(
+            "Bisección",
+            a,
+            0,
+            rFunc,
+            vObjetivo,
+            maxH,
+            true,
+            "Convergió"
         );
-
-
-    if (
-        fa * fb > 0
-    ) {
-
-        return {
-            altura: NaN,
-            iter: 0,
-            error: NaN
-        };
-
     }
 
+    if (fa * fb > 0) {
+        return crearResultado(
+            "Bisección",
+            a,
+            0,
+            rFunc,
+            vObjetivo,
+            maxH,
+            false,
+            "No existe intervalo con cambio de signo"
+        );
+    }
 
-    let c = a;
+    let c = (a + b) / 2;
+    let fc = 0;
 
     let iter = 0;
 
+    for (iter = 1; iter <= maxIter; iter++) {
 
-    while (
-        iter < maxIter
-    ) {
+        c = (a + b) / 2;
 
-        c =
-            (a + b) / 2;
-
-
-        const fc =
+        fc =
             fObjetivo(
                 c,
-                volumenObjetivo,
+                vObjetivo,
                 rFunc
             );
 
-
         if (
-            valorAbsoluto(fc) <
-            tol ||
-            valorAbsoluto(b - a) / 2 <
-            tol
+            Math.abs(fc) < tol ||
+            Math.abs(b - a) / 2 < tol
         ) {
 
-            break;
-
+            return crearResultado(
+                "Bisección",
+                c,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
         }
 
-
-        if (
-            fa * fc < 0
-        ) {
+        if (fa * fc < 0) {
 
             b = c;
-
             fb = fc;
 
         } else {
 
             a = c;
-
             fa = fc;
-
         }
-
-
-        iter++;
-
     }
 
-
-    return {
-
-        altura: c,
-
-        iter: iter,
-
-        error:
-            valorAbsoluto(
-                fObjetivo(
-                    c,
-                    volumenObjetivo,
-                    rFunc
-                )
-            )
-
-    };
-
+    return crearResultado(
+        "Bisección",
+        c,
+        maxIter,
+        rFunc,
+        vObjetivo,
+        maxH,
+        false,
+        "Máximo de iteraciones alcanzado"
+    );
 }
 
 
 // =============================================================
-// 5. FALSA POSICIÓN
+// 7. FALSA POSICIÓN
 // =============================================================
 
 function metodoFalsaPosicion(
-    volumenObjetivo,
+    vObjetivo,
     rFunc,
     maxH,
-    tol = 0.0001,
-    maxIter = 100
+    tol = TOLERANCIA,
+    maxIter = MAX_ITERACIONES
 ) {
 
     let a = 0;
-
     let b = maxH;
 
-
     let fa =
-        fObjetivo(
-            a,
-            volumenObjetivo,
-            rFunc
-        );
-
+        fObjetivo(a, vObjetivo, rFunc);
 
     let fb =
-        fObjetivo(
-            b,
-            volumenObjetivo,
-            rFunc
+        fObjetivo(b, vObjetivo, rFunc);
+
+    if (fa * fb > 0) {
+
+        return crearResultado(
+            "Falsa Posición",
+            a,
+            0,
+            rFunc,
+            vObjetivo,
+            maxH,
+            false,
+            "No existe intervalo con cambio de signo"
         );
-
-
-    if (
-        fa * fb > 0
-    ) {
-
-        return {
-            altura: NaN,
-            iter: 0,
-            error: NaN
-        };
-
     }
-
 
     let c = a;
 
+    for (let iter = 1; iter <= maxIter; iter++) {
 
-    for (
-        let iter = 0;
-        iter < maxIter;
-        iter++
-    ) {
+        if (Math.abs(fb - fa) < 1e-12) {
+            break;
+        }
 
         c =
             b -
-            (
-                fb *
-                (b - a)
-            ) /
+            (fb * (b - a)) /
             (fb - fa);
 
+        c = Math.max(
+            a,
+            Math.min(b, c)
+        );
 
         const fc =
             fObjetivo(
                 c,
-                volumenObjetivo,
+                vObjetivo,
                 rFunc
             );
 
+        if (Math.abs(fc) < tol) {
 
-        if (
-            valorAbsoluto(fc) <
-            tol
-        ) {
-
-            return {
-
-                altura: c,
-
-                iter: iter + 1,
-
-                error:
-                    valorAbsoluto(fc)
-
-            };
-
+            return crearResultado(
+                "Falsa Posición",
+                c,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
         }
 
-
-        if (
-            fa * fc < 0
-        ) {
+        if (fa * fc < 0) {
 
             b = c;
-
             fb = fc;
 
         } else {
 
             a = c;
-
             fa = fc;
-
         }
-
     }
 
-
-    return {
-
-        altura: c,
-
-        iter: maxIter,
-
-        error:
-            calcularResiduo(
-                c,
-                volumenObjetivo,
-                rFunc
-            )
-
-    };
-
+    return crearResultado(
+        "Falsa Posición",
+        c,
+        maxIter,
+        rFunc,
+        vObjetivo,
+        maxH,
+        false,
+        "Máximo de iteraciones alcanzado"
+    );
 }
 
 
 // =============================================================
-// 6. PUNTO FIJO
+// 8. PUNTO FIJO
 // =============================================================
 
 function metodoPuntoFijo(
-    volumenObjetivo,
+    vObjetivo,
     rFunc,
     maxH,
-    tol = 0.0001,
-    maxIter = 100
+    tol = TOLERANCIA,
+    maxIter = MAX_ITERACIONES
 ) {
 
-    let h =
-        maxH * 0.5;
+    let h = maxH * 0.5;
 
+    // Estimación constante del área.
+    // g(h) = h - f(h)/K
+    // K actúa como una aproximación de dV/dh.
 
-    for (
-        let iter = 0;
-        iter < maxIter;
-        iter++
-    ) {
+    let sumaAreas = 0;
+    const muestras = 30;
+
+    for (let i = 0; i <= muestras; i++) {
+
+        const z =
+            (i / muestras) * maxH;
+
+        const r =
+            Math.max(0, rFunc(z));
+
+        sumaAreas +=
+            PI * r * r;
+    }
+
+    let K =
+        sumaAreas /
+        (muestras + 1);
+
+    if (K < 1e-8) {
+        K = 1;
+    }
+
+    for (let iter = 1; iter <= maxIter; iter++) {
 
         const fh =
             fObjetivo(
                 h,
-                volumenObjetivo,
+                vObjetivo,
                 rFunc
             );
 
+        if (Math.abs(fh) < tol) {
 
-        if (
-            valorAbsoluto(fh) <
-            tol
-        ) {
-
-            return {
-
-                altura: h,
-
-                iter: iter,
-
-                error:
-                    valorAbsoluto(fh)
-
-            };
-
+            return crearResultado(
+                "Punto Fijo",
+                h,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
         }
 
-
-        /*
-         * Aproximamos dV/dh mediante
-         * el área transversal actual.
-         */
-
-        const radio =
-            Math.max(
-                rFunc(h),
-                0.000001
-            );
-
-
-        const derivada =
-            PI *
-            cuadrado(radio);
-
-
-        /*
-         * Función de iteración:
-         *
-         * g(h) = h - f(h)/f'(h)
-         *
-         * Se utiliza para obtener una
-         * iteración de punto fijo estable.
-         */
-
-        let hNext =
+        const hNext =
             h -
-            fh /
-            derivada;
-
-
-        /*
-         * Mantener la altura dentro
-         * de los límites físicos.
-         */
-
-        hNext =
-            Math.max(
-                0,
-                Math.min(
-                    maxH,
-                    hNext
-                )
-            );
-
+            fh / K;
 
         if (
-            valorAbsoluto(
-                hNext - h
-            ) <
-            tol
+            !Number.isFinite(hNext) ||
+            hNext < 0 ||
+            hNext > maxH
         ) {
 
-            h = hNext;
-
-            return {
-
-                altura: h,
-
-                iter: iter + 1,
-
-                error:
-                    calcularResiduo(
-                        h,
-                        volumenObjetivo,
-                        rFunc
-                    )
-
-            };
-
+            return crearResultado(
+                "Punto Fijo",
+                h,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                false,
+                "El método salió del intervalo"
+            );
         }
 
+        if (Math.abs(hNext - h) < tol) {
 
-        h =
-            hNext;
+            return crearResultado(
+                "Punto Fijo",
+                hNext,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
+        }
 
+        h = hNext;
     }
 
-
-    return {
-
-        altura: h,
-
-        iter: maxIter,
-
-        error:
-            calcularResiduo(
-                h,
-                volumenObjetivo,
-                rFunc
-            )
-
-    };
-
+    return crearResultado(
+        "Punto Fijo",
+        h,
+        maxIter,
+        rFunc,
+        vObjetivo,
+        maxH,
+        false,
+        "Máximo de iteraciones alcanzado"
+    );
 }
 
 
 // =============================================================
-// 7. NEWTON-RAPHSON
+// 9. NEWTON-RAPHSON
 // =============================================================
 
 function metodoNewtonRaphson(
-    volumenObjetivo,
+    vObjetivo,
     rFunc,
     maxH,
-    tol = 0.0001,
-    maxIter = 100
+    tol = TOLERANCIA,
+    maxIter = MAX_ITERACIONES
 ) {
 
-    let h =
-        maxH * 0.5;
+    let h = maxH * 0.5;
 
-
-    for (
-        let iter = 0;
-        iter < maxIter;
-        iter++
-    ) {
+    for (let iter = 1; iter <= maxIter; iter++) {
 
         const fh =
             fObjetivo(
                 h,
-                volumenObjetivo,
+                vObjetivo,
                 rFunc
             );
 
+        if (Math.abs(fh) < tol) {
 
-        if (
-            valorAbsoluto(fh) <
-            tol
-        ) {
-
-            return {
-
-                altura: h,
-
-                iter: iter,
-
-                error:
-                    valorAbsoluto(fh)
-
-            };
-
-        }
-
-
-        /*
-         * Derivada:
-         *
-         * F'(h) = π r(h)²
-         */
-
-        const radio =
-            rFunc(h);
-
-
-        const derivada =
-            PI *
-            cuadrado(radio);
-
-
-        if (
-            valorAbsoluto(derivada) <
-            1e-10
-        ) {
-
-            break;
-
-        }
-
-
-        let hNext =
-            h -
-            fh /
-            derivada;
-
-
-        hNext =
-            Math.max(
-                0,
-                Math.min(
-                    maxH,
-                    hNext
-                )
+            return crearResultado(
+                "Newton-Raphson",
+                h,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
             );
-
-
-        if (
-            valorAbsoluto(
-                hNext - h
-            ) <
-            tol
-        ) {
-
-            h =
-                hNext;
-
-            break;
-
         }
 
+        // dV/dh = A(h) = πr²
+        const r =
+            Math.max(0, rFunc(h));
 
-        h =
-            hNext;
+        const dfh =
+            PI * r * r;
 
+        if (Math.abs(dfh) < 1e-10) {
+
+            return crearResultado(
+                "Newton-Raphson",
+                h,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                false,
+                "Derivada demasiado pequeña"
+            );
+        }
+
+        const hNext =
+            h -
+            fh / dfh;
+
+        if (
+            !Number.isFinite(hNext) ||
+            hNext < 0 ||
+            hNext > maxH
+        ) {
+
+            return crearResultado(
+                "Newton-Raphson",
+                h,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                false,
+                "El método salió del intervalo"
+            );
+        }
+
+        if (Math.abs(hNext - h) < tol) {
+
+            return crearResultado(
+                "Newton-Raphson",
+                hNext,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
+        }
+
+        h = hNext;
     }
 
-
-    return {
-
-        altura: h,
-
-        iter: maxIter,
-
-        error:
-            calcularResiduo(
-                h,
-                volumenObjetivo,
-                rFunc
-            )
-
-    };
-
+    return crearResultado(
+        "Newton-Raphson",
+        h,
+        maxIter,
+        rFunc,
+        vObjetivo,
+        maxH,
+        false,
+        "Máximo de iteraciones alcanzado"
+    );
 }
 
 
 // =============================================================
-// 8. MÉTODO DE LA SECANTE
+// 10. SECANTE
 // =============================================================
 
 function metodoSecante(
-    volumenObjetivo,
+    vObjetivo,
     rFunc,
     maxH,
-    tol = 0.0001,
-    maxIter = 100
+    tol = TOLERANCIA,
+    maxIter = MAX_ITERACIONES
 ) {
 
-    let h0 =
-        maxH * 0.3;
+    let h0 = maxH * 0.3;
+    let h1 = maxH * 0.8;
 
+    for (let iter = 1; iter <= maxIter; iter++) {
 
-    let h1 =
-        maxH * 0.8;
+        const f0 =
+            fObjetivo(
+                h0,
+                vObjetivo,
+                rFunc
+            );
 
+        const f1 =
+            fObjetivo(
+                h1,
+                vObjetivo,
+                rFunc
+            );
 
-    let f0 =
-        fObjetivo(
-            h0,
-            volumenObjetivo,
-            rFunc
-        );
+        if (Math.abs(f1) < tol) {
 
-
-    let f1 =
-        fObjetivo(
-            h1,
-            volumenObjetivo,
-            rFunc
-        );
-
-
-    let hNext =
-        h1;
-
-
-    for (
-        let iter = 0;
-        iter < maxIter;
-        iter++
-    ) {
-
-        if (
-            valorAbsoluto(
-                f1 - f0
-            ) <
-            1e-10
-        ) {
-
-            break;
-
+            return crearResultado(
+                "Secante",
+                h1,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
         }
 
+        if (Math.abs(f1 - f0) < 1e-12) {
 
-        hNext =
+            return crearResultado(
+                "Secante",
+                h1,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                false,
+                "Denominador demasiado pequeño"
+            );
+        }
+
+        const hNext =
             h1 -
-            (
-                f1 *
-                (h1 - h0)
-            ) /
+            f1 *
+            (h1 - h0) /
             (f1 - f0);
 
-
-        hNext =
-            Math.max(
-                0,
-                Math.min(
-                    maxH,
-                    hNext
-                )
-            );
-
-
-        const fNext =
-            fObjetivo(
-                hNext,
-                volumenObjetivo,
-                rFunc
-            );
-
-
         if (
-            valorAbsoluto(fNext) <
-            tol
+            !Number.isFinite(hNext) ||
+            hNext < 0 ||
+            hNext > maxH
         ) {
 
-            return {
-
-                altura: hNext,
-
-                iter: iter + 1,
-
-                error:
-                    valorAbsoluto(fNext)
-
-            };
-
+            return crearResultado(
+                "Secante",
+                h1,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                false,
+                "El método salió del intervalo"
+            );
         }
 
+        if (Math.abs(hNext - h1) < tol) {
+
+            return crearResultado(
+                "Secante",
+                hNext,
+                iter,
+                rFunc,
+                vObjetivo,
+                maxH,
+                true,
+                "Convergió"
+            );
+        }
 
         h0 = h1;
-
-        f0 = f1;
-
-
         h1 = hNext;
-
-        f1 = fNext;
-
     }
 
-
-    return {
-
-        altura: hNext,
-
-        iter: maxIter,
-
-        error:
-            calcularResiduo(
-                hNext,
-                volumenObjetivo,
-                rFunc
-            )
-
-    };
-
+    return crearResultado(
+        "Secante",
+        h1,
+        maxIter,
+        rFunc,
+        vObjetivo,
+        maxH,
+        false,
+        "Máximo de iteraciones alcanzado"
+    );
 }
 
 
 // =============================================================
-// 9. CÁMARA
+// 11. CÁMARA
 // =============================================================
 
 btnStartCamera.addEventListener(
@@ -1278,49 +999,30 @@ btnStartCamera.addEventListener(
 
             stream =
                 await navigator.mediaDevices.getUserMedia({
-
                     video: {
                         facingMode: 'environment'
                     }
-
                 });
 
+            video.srcObject = stream;
 
-            video.srcObject =
-                stream;
+            video.style.display = 'block';
+            canvas.style.display = 'none';
 
+            btnCapture.disabled = false;
 
-            video.style.display =
-                'block';
-
-
-            canvas.style.display =
-                'none';
-
-
-            btnCapture.disabled =
-                false;
-
-
-            pointInstructions.textContent =
-                'Cámara activa. Coloca la botella en posición vertical y captura la fotografía.';
-
-        } catch (err) {
+        } catch (error) {
 
             alert(
                 'Error al acceder a la cámara.'
             );
-
-            console.error(err);
-
         }
-
     }
 );
 
 
 // =============================================================
-// 10. CAPTURA DE FOTO
+// 12. CAPTURA
 // =============================================================
 
 btnCapture.addEventListener(
@@ -1328,14 +1030,10 @@ btnCapture.addEventListener(
     () => {
 
         canvas.width =
-            video.videoWidth ||
-            640;
-
+            video.videoWidth || 640;
 
         canvas.height =
-            video.videoHeight ||
-            480;
-
+            video.videoHeight || 480;
 
         ctx.drawImage(
             video,
@@ -1345,53 +1043,35 @@ btnCapture.addEventListener(
             canvas.height
         );
 
-
         if (stream) {
 
             stream
                 .getTracks()
-                .forEach(
-                    track => track.stop()
-                );
-
+                .forEach(track => track.stop());
         }
 
+        video.style.display = 'none';
+        canvas.style.display = 'block';
 
-        video.style.display =
-            'none';
+        btnCapture.disabled = true;
 
+        imageCaptured = true;
 
-        canvas.style.display =
-            'block';
-
-
-        btnCapture.disabled =
-            true;
-
-
-        imageCaptured =
-            true;
-
-
-        capturedImageObj =
-            new Image();
-
+        capturedImageObj = new Image();
 
         capturedImageObj.src =
-            canvas.toDataURL(
-                'image/png'
-            );
+            canvas.toDataURL('image/png');
 
+        calibrationPoints = [];
 
-        pointInstructions.innerHTML =
-            '<b>Punto 1:</b> selecciona la Tapa de la botella.';
-
+        actualizarEstadoPuntos();
+        redrawCanvas();
     }
 );
 
 
 // =============================================================
-// 11. SELECCIÓN DE LOS 4 PUNTOS
+// 13. SELECCIÓN DE PUNTOS
 // =============================================================
 
 canvas.addEventListener(
@@ -1399,104 +1079,66 @@ canvas.addEventListener(
     (e) => {
 
         if (!imageCaptured) {
-
             return;
-
         }
 
-
-        if (
-            calibrationPoints.length >= 4
-        ) {
-
+        if (calibrationPoints.length >= 4) {
             return;
-
         }
-
 
         const rect =
             canvas.getBoundingClientRect();
-
 
         const scaleX =
             canvas.width /
             rect.width;
 
-
         const scaleY =
             canvas.height /
             rect.height;
 
-
         const x =
-            (
-                e.clientX -
-                rect.left
-            ) *
+            (e.clientX - rect.left) *
             scaleX;
 
-
         const y =
-            (
-                e.clientY -
-                rect.top
-            ) *
+            (e.clientY - rect.top) *
             scaleY;
 
-
         calibrationPoints.push({
-            x: x,
-            y: y
+            x,
+            y
         });
 
-
         redrawCanvas();
+        actualizarEstadoPuntos();
 
-
-        const cantidad =
-            calibrationPoints.length;
-
-
-        if (cantidad === 1) {
-
-            pointInstructions.innerHTML =
-                '<b>Punto 2:</b> selecciona la Base de la botella.';
-
+        if (calibrationPoints.length === 4) {
+            btnCalculate.disabled = false;
         }
-
-
-        else if (cantidad === 2) {
-
-            pointInstructions.innerHTML =
-                '<b>Punto 3:</b> selecciona el Borde Máximo.';
-
-        }
-
-
-        else if (cantidad === 3) {
-
-            pointInstructions.innerHTML =
-                '<b>Punto 4:</b> selecciona el Borde Mínimo.';
-
-        }
-
-
-        else if (cantidad === 4) {
-
-            pointInstructions.innerHTML =
-                '<b>Los 4 puntos fueron seleccionados.</b> Presiona "Calcular Volumen".';
-
-            btnCalculate.disabled =
-                false;
-
-        }
-
     }
 );
 
 
 // =============================================================
-// 12. DIBUJAR PUNTOS
+// 14. ACTUALIZAR ESTADO
+// =============================================================
+
+function actualizarEstadoPuntos() {
+
+    pointStatus.textContent =
+        `Puntos seleccionados: ${calibrationPoints.length} / 4`;
+
+    if (calibrationPoints.length === 4) {
+
+        pointStatus.textContent =
+            '✓ Los 4 puntos fueron seleccionados. Puede calcular.';
+    }
+}
+
+
+// =============================================================
+// 15. REDIBUJAR IMAGEN Y PUNTOS
 // =============================================================
 
 function redrawCanvas() {
@@ -1508,7 +1150,6 @@ function redrawCanvas() {
         canvas.height
     );
 
-
     if (capturedImageObj) {
 
         ctx.drawImage(
@@ -1516,35 +1157,21 @@ function redrawCanvas() {
             0,
             0
         );
-
     }
 
-
     const labels = [
-
-        'Tapa',
-
-        'Base',
-
-        'Borde Max',
-
-        'Borde Min'
-
+        "Tapa",
+        "Base",
+        "Radio Max",
+        "Radio Min"
     ];
-
 
     const colors = [
-
-        '#007bff',
-
-        '#007bff',
-
-        '#ff1744',
-
-        '#ffc107'
-
+        "#007bff",
+        "#007bff",
+        "#ff1744",
+        "#ffc107"
     ];
-
 
     calibrationPoints.forEach(
         (pt, i) => {
@@ -1552,9 +1179,7 @@ function redrawCanvas() {
             ctx.fillStyle =
                 colors[i];
 
-
             ctx.beginPath();
-
 
             ctx.arc(
                 pt.x,
@@ -1564,542 +1189,345 @@ function redrawCanvas() {
                 2 * PI
             );
 
-
             ctx.fill();
 
-
             ctx.fillStyle =
-                'white';
-
+                "white";
 
             ctx.font =
-                'bold 13px sans-serif';
-
+                "bold 13px sans-serif";
 
             ctx.fillText(
                 labels[i],
                 pt.x + 10,
                 pt.y + 4
             );
-
         }
     );
 
 
-    if (
-        calibrationPoints.length >= 2
-    ) {
+    if (calibrationPoints.length >= 2) {
 
         ctx.strokeStyle =
             'rgba(0, 123, 255, 0.7)';
 
-
-        ctx.lineWidth =
-            2;
-
+        ctx.lineWidth = 2;
 
         ctx.beginPath();
-
 
         ctx.moveTo(
             calibrationPoints[0].x,
             calibrationPoints[0].y
         );
 
-
         ctx.lineTo(
             calibrationPoints[1].x,
             calibrationPoints[1].y
         );
 
-
         ctx.stroke();
-
     }
-
 }
 
 
 // =============================================================
-// 13. BOTÓN REINICIAR
-// =============================================================
-
-btnReset.addEventListener(
-    'click',
-    () => {
-
-        calibrationPoints = [];
-
-        imageCaptured = false;
-
-        btnCalculate.disabled =
-            true;
-
-
-        document.getElementById(
-            'resultsCard'
-        ).style.display =
-            'none';
-
-
-        const siluetaCanvas =
-            document.getElementById(
-                'siluetaCanvas'
-            );
-
-
-        if (siluetaCanvas) {
-
-            const gCtx =
-                siluetaCanvas.getContext(
-                    '2d'
-                );
-
-
-            gCtx.clearRect(
-                0,
-                0,
-                siluetaCanvas.width,
-                siluetaCanvas.height
-            );
-
-        }
-
-
-        pointInstructions.innerHTML =
-            'Primero inicia la cámara y captura una fotografía. Después selecciona los 4 puntos: <b>Tapa → Base → Borde máximo → Borde mínimo</b>.';
-
-
-        redrawCanvas();
-
-    }
-);
-
-
-// =============================================================
-// 14. CÁLCULO PRINCIPAL
+// 16. CALCULAR
 // =============================================================
 
 btnCalculate.addEventListener(
     'click',
     () => {
 
-        if (
-            calibrationPoints.length < 4
-        ) {
-
+        if (calibrationPoints.length < 4) {
             return;
-
         }
 
+        try {
 
-        const realHeightCm =
-            parseFloat(
-                realHeightInput.value
-            ) || 21;
+            const realHeightCm =
+                parseFloat(
+                    realHeightInput.value
+                ) || 15;
 
-
-        const volumenObjetivo =
-            parseFloat(
-                targetVolumeInput.value
-            ) || 250;
-
-
-        const topPt =
-            calibrationPoints[0];
+            const vObjetivo =
+                parseFloat(
+                    targetVolumeInput.value
+                ) || 250;
 
 
-        const bottomPt =
-            calibrationPoints[1];
+            const topPt =
+                calibrationPoints[0];
+
+            const bottomPt =
+                calibrationPoints[1];
+
+            const maxRadiusPt =
+                calibrationPoints[2];
+
+            const minRadiusPt =
+                calibrationPoints[3];
 
 
-        const maxRadiusPt =
-            calibrationPoints[2];
+            // -------------------------------------------------
+            // PERFIL
+            // -------------------------------------------------
 
+            const perfil =
+                extraerPerfilRealDeImagen(
+                    topPt,
+                    bottomPt,
+                    realHeightCm,
+                    maxRadiusPt,
+                    minRadiusPt
+                );
 
-        const minRadiusPt =
-            calibrationPoints[3];
-
-
-        // -----------------------------------------------------
-        // EXTRAER PERFIL
-        // -----------------------------------------------------
-
-        const perfil =
-            extraerPerfilRealDeImagen(
-                topPt,
-                bottomPt,
-                maxRadiusPt,
-                minRadiusPt,
-                realHeightCm
-            );
-
-
-        const rawNodes =
-            perfil.rawNodes;
-
-
-        const maxRadiusCm =
-            perfil.maxRadiusCm;
-
-
-        const minRadiusCm =
-            perfil.minRadiusCm;
-
-
-        // -----------------------------------------------------
-        // SPLINE
-        // -----------------------------------------------------
-
-        const rSpline =
-            calcularSplineCubico(
-                rawNodes
-            );
-
-
-        // -----------------------------------------------------
-        // DATASET FINAL
-        // -----------------------------------------------------
-
-        const totalPuntos =
-            60;
-
-
-        const dataset = [];
-
-
-        for (
-            let i = 0;
-            i <= totalPuntos;
-            i++
-        ) {
-
-            const z =
-                i *
-                (
-                    realHeightCm /
-                    totalPuntos
+            const rSpline =
+                calcularSplineCubico(
+                    perfil.rawNodes
                 );
 
 
-            let r =
-                rSpline(z);
+            // -------------------------------------------------
+            // DATASET
+            // -------------------------------------------------
+
+            let dataset = [];
+
+            for (
+                let i = 0;
+                i <= NODOS_DATASET;
+                i++
+            ) {
+
+                const z =
+                    i *
+                    (realHeightCm / NODOS_DATASET);
+
+                const r =
+                    Math.max(
+                        0,
+                        rSpline(z)
+                    );
+
+                dataset.push({
+                    z,
+                    r
+                });
+            }
 
 
-            r =
-                Math.max(
-                    minRadiusCm,
-                    Math.min(
-                        maxRadiusCm,
-                        r
-                    )
+            // -------------------------------------------------
+            // VOLUMEN TOTAL
+            // -------------------------------------------------
+
+            const volumeCm3 =
+                integrarSimpson(
+                    rSpline,
+                    0,
+                    realHeightCm,
+                    80
                 );
 
 
-            dataset.push({
+            // -------------------------------------------------
+            // VALIDACIÓN DEL OBJETIVO
+            // -------------------------------------------------
 
-                z: z,
+            let volumenObjetivoReal =
+                vObjetivo;
 
-                r: r
+            if (
+                vObjetivo <= 0 ||
+                vObjetivo > volumeCm3
+            ) {
 
-            });
+                volumenObjetivoReal =
+                    volumeCm3 * 0.8;
+            }
 
-        }
+
+            // -------------------------------------------------
+            // MÉTODOS
+            // -------------------------------------------------
+
+            const resultados = [
+
+                metodoBiseccion(
+                    volumenObjetivoReal,
+                    rSpline,
+                    realHeightCm
+                ),
+
+                metodoFalsaPosicion(
+                    volumenObjetivoReal,
+                    rSpline,
+                    realHeightCm
+                ),
+
+                metodoPuntoFijo(
+                    volumenObjetivoReal,
+                    rSpline,
+                    realHeightCm
+                ),
+
+                metodoNewtonRaphson(
+                    volumenObjetivoReal,
+                    rSpline,
+                    realHeightCm
+                ),
+
+                metodoSecante(
+                    volumenObjetivoReal,
+                    rSpline,
+                    realHeightCm
+                )
+            ];
 
 
-        // -----------------------------------------------------
-        // VOLUMEN TOTAL
-        // -----------------------------------------------------
+            // -------------------------------------------------
+            // RESULTADOS GENERALES
+            // -------------------------------------------------
 
-        const volumeCm3 =
-            integrarSimpson(
-                rSpline,
-                0,
+            document.getElementById(
+                'volResult'
+            ).textContent =
+                volumeCm3.toFixed(2);
+
+            document.getElementById(
+                'targetResult'
+            ).textContent =
+                volumenObjetivoReal.toFixed(2);
+
+            document.getElementById(
+                'pointsCount'
+            ).textContent =
+                dataset.length;
+
+
+            // -------------------------------------------------
+            // TABLA DE MÉTODOS
+            // -------------------------------------------------
+
+            const methodsBody =
+                document.querySelector(
+                    '#methodsTable tbody'
+                );
+
+            methodsBody.innerHTML = '';
+
+            resultados.forEach(
+                resultado => {
+
+                    const fila =
+                        document.createElement('tr');
+
+                    fila.innerHTML = `
+
+                        <td>
+                            <strong>
+                                ${resultado.metodo}
+                            </strong>
+                        </td>
+
+                        <td>
+                            ${resultado.altura.toFixed(4)}
+                        </td>
+
+                        <td>
+                            ${resultado.radio.toFixed(4)}
+                        </td>
+
+                        <td>
+                            ${resultado.volumen.toFixed(4)}
+                        </td>
+
+                        <td>
+                            ${resultado.error.toExponential(3)}
+                        </td>
+
+                        <td>
+                            ${resultado.iter}
+                        </td>
+
+                        <td class="${resultado.convergio ? 'convergio' : 'no-convergio'}">
+                            ${resultado.mensaje}
+                        </td>
+                    `;
+
+                    methodsBody.appendChild(fila);
+                }
+            );
+
+
+            // -------------------------------------------------
+            // DATASET
+            // -------------------------------------------------
+
+            const tbody =
+                document.querySelector(
+                    '#datasetTable tbody'
+                );
+
+            tbody.innerHTML = '';
+
+            dataset.forEach(
+                (data, i) => {
+
+                    tbody.innerHTML += `
+
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${data.z.toFixed(2)}</td>
+                            <td>${data.r.toFixed(2)}</td>
+                        </tr>
+
+                    `;
+                }
+            );
+
+
+            // -------------------------------------------------
+            // MOSTRAR RESULTADOS
+            // -------------------------------------------------
+
+            document.getElementById(
+                'resultsCard'
+            ).style.display = 'block';
+
+
+            // -------------------------------------------------
+            // GRAFICAR
+            // -------------------------------------------------
+
+            graficarSiluetaDesdeTabla(
+                dataset,
                 realHeightCm,
-                80
+                resultados,
+                perfil
             );
 
+        } catch (error) {
 
-        // -----------------------------------------------------
-        // VALIDAR VOLUMEN OBJETIVO
-        // -----------------------------------------------------
+            console.error(error);
 
-        let vObjetivo =
-            volumenObjetivo;
-
-
-        if (
-            vObjetivo >= volumeCm3
-        ) {
-
-            vObjetivo =
-                volumeCm3 * 0.95;
-
+            alert(
+                'Ocurrió un error durante el cálculo: ' +
+                error.message
+            );
         }
-
-
-        // -----------------------------------------------------
-        // EJECUTAR LOS 5 MÉTODOS
-        // -----------------------------------------------------
-
-        const resBiseccion =
-            metodoBiseccion(
-                vObjetivo,
-                rSpline,
-                realHeightCm
-            );
-
-
-        const resFalsaPosicion =
-            metodoFalsaPosicion(
-                vObjetivo,
-                rSpline,
-                realHeightCm
-            );
-
-
-        const resPuntoFijo =
-            metodoPuntoFijo(
-                vObjetivo,
-                rSpline,
-                realHeightCm
-            );
-
-
-        const resNewton =
-            metodoNewtonRaphson(
-                vObjetivo,
-                rSpline,
-                realHeightCm
-            );
-
-
-        const resSecante =
-            metodoSecante(
-                vObjetivo,
-                rSpline,
-                realHeightCm
-            );
-
-
-        const resultados = [
-
-            {
-                nombre: 'Bisección',
-                resultado: resBiseccion
-            },
-
-            {
-                nombre: 'Falsa Posición',
-                resultado: resFalsaPosicion
-            },
-
-            {
-                nombre: 'Punto Fijo',
-                resultado: resPuntoFijo
-            },
-
-            {
-                nombre: 'Newton-Raphson',
-                resultado: resNewton
-            },
-
-            {
-                nombre: 'Secante',
-                resultado: resSecante
-            }
-
-        ];
-
-
-        // -----------------------------------------------------
-        // MOSTRAR RESUMEN
-        // -----------------------------------------------------
-
-        document.getElementById(
-            'volResult'
-        ).textContent =
-            volumeCm3.toFixed(2);
-
-
-        document.getElementById(
-            'targetResult'
-        ).textContent =
-            vObjetivo.toFixed(2);
-
-
-        document.getElementById(
-            'pointsCount'
-        ).textContent =
-            dataset.length;
-
-
-        document.getElementById(
-            'maxRadiusResult'
-        ).textContent =
-            maxRadiusCm.toFixed(2);
-
-
-        document.getElementById(
-            'minRadiusResult'
-        ).textContent =
-            minRadiusCm.toFixed(2);
-
-
-        // -----------------------------------------------------
-        // TABLA DE MÉTODOS
-        // -----------------------------------------------------
-
-        const methodsBody =
-            document.querySelector(
-                '#methodsTable tbody'
-            );
-
-
-        methodsBody.innerHTML = '';
-
-
-        resultados.forEach(
-            metodo => {
-
-                const resultado =
-                    metodo.resultado;
-
-
-                const fila =
-                    document.createElement(
-                        'tr'
-                    );
-
-
-                const altura =
-                    Number.isFinite(
-                        resultado.altura
-                    )
-                        ? resultado.altura.toFixed(4)
-                        : 'No converge';
-
-
-                const error =
-                    Number.isFinite(
-                        resultado.error
-                    )
-                        ? resultado.error.toFixed(6)
-                        : '-';
-
-
-                fila.innerHTML = `
-
-                    <td>
-                        ${metodo.nombre}
-                    </td>
-
-                    <td>
-                        ${altura}
-                    </td>
-
-                    <td>
-                        ${resultado.iter}
-                    </td>
-
-                    <td>
-                        ${error}
-                    </td>
-
-                `;
-
-
-                methodsBody.appendChild(
-                    fila
-                );
-
-            }
-        );
-
-
-        // -----------------------------------------------------
-        // TABLA DEL DATASET
-        // -----------------------------------------------------
-
-        const tbody =
-            document.querySelector(
-                '#datasetTable tbody'
-            );
-
-
-        tbody.innerHTML = '';
-
-
-        dataset.forEach(
-            (data, i) => {
-
-                const fila =
-                    document.createElement(
-                        'tr'
-                    );
-
-
-                fila.innerHTML = `
-
-                    <td>
-                        ${i + 1}
-                    </td>
-
-                    <td>
-                        ${data.z.toFixed(2)}
-                    </td>
-
-                    <td>
-                        ${data.r.toFixed(2)}
-                    </td>
-
-                `;
-
-
-                tbody.appendChild(
-                    fila
-                );
-
-            }
-        );
-
-
-        // -----------------------------------------------------
-        // MOSTRAR RESULTADOS
-        // -----------------------------------------------------
-
-        document.getElementById(
-            'resultsCard'
-        ).style.display =
-            'block';
-
-
-        // -----------------------------------------------------
-        // GRAFICAR SILUETA
-        // -----------------------------------------------------
-
-        graficarSilueta(
-            dataset,
-            realHeightCm,
-            resultados,
-            vObjetivo,
-            rSpline
-        );
-
     }
 );
 
 
 // =============================================================
-// 15. GRÁFICA DE LA SILUETA
+// 17. GRÁFICA DE LA SILUETA
 // =============================================================
 
-function graficarSilueta(
+function graficarSiluetaDesdeTabla(
     dataset,
     realHeightCm,
     resultados,
-    volumenObjetivo,
-    rSpline
+    perfil
 ) {
 
     const graphCanvas =
@@ -2107,53 +1535,41 @@ function graficarSilueta(
             'siluetaCanvas'
         );
 
-
     const gCtx =
-        graphCanvas.getContext(
-            '2d'
-        );
+        graphCanvas.getContext('2d');
 
+    const width =
+        graphCanvas.width;
+
+    const height =
+        graphCanvas.height;
 
     gCtx.clearRect(
         0,
         0,
-        graphCanvas.width,
-        graphCanvas.height
+        width,
+        height
     );
 
 
-    const padding =
-        35;
-
+    const padding = 35;
 
     const centerX =
-        graphCanvas.width / 2;
-
+        width / 2;
 
     const drawHeight =
-        graphCanvas.height -
-        padding * 2;
+        height - padding * 2;
 
-
-    const maxRadius =
+    const maxR =
         Math.max(
             ...dataset.map(
-                punto => punto.r
+                d => d.r
             )
         );
 
-
     const scaleX =
-        (
-            graphCanvas.width /
-            2 -
-            padding
-        ) /
-        (
-            maxRadius *
-            1.2
-        );
-
+        (width / 2 - padding) /
+        (maxR * 1.20);
 
     const scaleY =
         drawHeight /
@@ -2167,85 +1583,59 @@ function graficarSilueta(
     gCtx.strokeStyle =
         '#555';
 
+    gCtx.lineWidth = 1;
 
     gCtx.setLineDash([
         5,
         5
     ]);
 
-
     gCtx.beginPath();
-
 
     gCtx.moveTo(
         centerX,
         padding
     );
 
-
     gCtx.lineTo(
         centerX,
-        graphCanvas.height -
-        padding
+        height - padding
     );
 
-
     gCtx.stroke();
-
 
     gCtx.setLineDash([]);
 
 
     // ---------------------------------------------------------
-    // SILUETA DERECHA
+    // SILUETA
     // ---------------------------------------------------------
 
     gCtx.beginPath();
-
 
     dataset.forEach(
         (pt, i) => {
 
             const x =
                 centerX +
-                pt.r *
-                scaleX;
-
+                pt.r * scaleX;
 
             const y =
-                graphCanvas.height -
+                height -
                 padding -
-                pt.z *
-                scaleY;
-
+                pt.z * scaleY;
 
             if (i === 0) {
-
-                gCtx.moveTo(
-                    x,
-                    y
-                );
-
+                gCtx.moveTo(x, y);
             } else {
-
-                gCtx.lineTo(
-                    x,
-                    y
-                );
-
+                gCtx.lineTo(x, y);
             }
-
         }
     );
 
 
-    // ---------------------------------------------------------
-    // SILUETA IZQUIERDA
-    // ---------------------------------------------------------
-
     for (
-        let i =
-            dataset.length - 1;
+        let i = dataset.length - 1;
         i >= 0;
         i--
     ) {
@@ -2253,179 +1643,231 @@ function graficarSilueta(
         const pt =
             dataset[i];
 
-
         const x =
             centerX -
-            pt.r *
-            scaleX;
-
+            pt.r * scaleX;
 
         const y =
-            graphCanvas.height -
+            height -
             padding -
-            pt.z *
-            scaleY;
-
+            pt.z * scaleY;
 
         gCtx.lineTo(
             x,
             y
         );
-
     }
-
 
     gCtx.closePath();
 
 
-    // Relleno
-
     gCtx.fillStyle =
-        'rgba(0, 230, 118, 0.2)';
-
+        'rgba(0, 230, 118, 0.20)';
 
     gCtx.fill();
-
-
-    // Borde
 
     gCtx.strokeStyle =
         '#00e676';
 
-
-    gCtx.lineWidth =
-        2;
-
+    gCtx.lineWidth = 2;
 
     gCtx.stroke();
 
 
     // ---------------------------------------------------------
-    // MARCAR ALTURAS DE LOS MÉTODOS
+    // PUNTO RADIO MÁXIMO
     // ---------------------------------------------------------
 
+    dibujarPuntoGrafica(
+        gCtx,
+        centerX +
+            perfil.maxRadiusCm *
+            scaleX,
+        height -
+            padding -
+            perfil.zMax *
+            scaleY,
+        '#ff1744',
+        'Radio máximo'
+    );
+
+
+    // ---------------------------------------------------------
+    // PUNTO RADIO MÍNIMO
+    // ---------------------------------------------------------
+
+    dibujarPuntoGrafica(
+        gCtx,
+        centerX +
+            perfil.minRadiusCm *
+            scaleX,
+        height -
+            padding -
+            perfil.zMin *
+            scaleY,
+        '#ffc107',
+        'Radio mínimo'
+    );
+
+
+    // ---------------------------------------------------------
+    // PUNTOS OBTENIDOS POR LOS MÉTODOS
+    // ---------------------------------------------------------
+
+    const colores = [
+        '#007bff',
+        '#9c27b0',
+        '#ff9800',
+        '#00bcd4',
+        '#e91e63'
+    ];
+
     resultados.forEach(
-        metodo => {
+        (resultado, i) => {
 
-            const altura =
-                metodo.resultado.altura;
-
-
-            if (
-                !Number.isFinite(
-                    altura
-                )
-            ) {
-
-                return;
-
-            }
-
-
-            if (
-                altura < 0 ||
-                altura > realHeightCm
-            ) {
-
-                return;
-
-            }
-
+            const x =
+                centerX +
+                resultado.radio *
+                scaleX;
 
             const y =
-                graphCanvas.height -
+                height -
                 padding -
-                altura *
+                resultado.altura *
                 scaleY;
 
-
-            gCtx.strokeStyle =
-                '#ffffff';
-
-
-            gCtx.lineWidth =
-                1;
-
-
-            gCtx.setLineDash([
-                3,
-                3
-            ]);
-
-
-            gCtx.beginPath();
-
-
-            gCtx.moveTo(
-                centerX -
-                maxRadius *
-                scaleX,
-                y
+            dibujarPuntoGrafica(
+                gCtx,
+                x,
+                y,
+                colores[i],
+                resultado.metodo
             );
-
-
-            gCtx.lineTo(
-                centerX +
-                maxRadius *
-                scaleX,
-                y
-            );
-
-
-            gCtx.stroke();
-
-
-            gCtx.setLineDash([]);
-
-
-            gCtx.fillStyle =
-                '#ffffff';
-
-
-            gCtx.font =
-                '11px Arial';
-
-
-            gCtx.fillText(
-                metodo.nombre,
-                5,
-                y - 3
-            );
-
         }
     );
 
 
     // ---------------------------------------------------------
-    // TEXTO DE EJES
+    // LEYENDA
     // ---------------------------------------------------------
 
+    const legend =
+        document.getElementById(
+            'graphLegend'
+        );
+
+    legend.innerHTML = '';
+
+    resultados.forEach(
+        (resultado, i) => {
+
+            const item =
+                document.createElement('span');
+
+            item.innerHTML = `
+                <span
+                    class="legend-dot"
+                    style="background:${colores[i]}"
+                ></span>
+                ${resultado.metodo}
+            `;
+
+            legend.appendChild(item);
+        }
+    );
+
+    legend.innerHTML += `
+        <span>
+            <span
+                class="legend-dot"
+                style="background:#ff1744"
+            ></span>
+            Radio máximo
+        </span>
+
+        <span>
+            <span
+                class="legend-dot"
+                style="background:#ffc107"
+            ></span>
+            Radio mínimo
+        </span>
+    `;
+}
+
+
+// =============================================================
+// 18. DIBUJAR PUNTO
+// =============================================================
+
+function dibujarPuntoGrafica(
+    gCtx,
+    x,
+    y,
+    color,
+    label
+) {
+
     gCtx.fillStyle =
+        color;
+
+    gCtx.beginPath();
+
+    gCtx.arc(
+        x,
+        y,
+        5,
+        0,
+        2 * PI
+    );
+
+    gCtx.fill();
+
+    gCtx.strokeStyle =
         '#ffffff';
 
+    gCtx.lineWidth = 1;
 
-    gCtx.font =
-        '12px Arial';
-
-
-    gCtx.fillText(
-        'Altura (cm)',
-        5,
-        15
-    );
-
-
-    gCtx.fillText(
-        '0',
-        centerX + 5,
-        graphCanvas.height - padding + 15
-    );
-
-
-    gCtx.fillText(
-        realHeightCm.toFixed(1),
-        centerX + 5,
-        padding
-    );
-
+    gCtx.stroke();
 }
+
+
+// =============================================================
+// 19. REINICIAR
+// =============================================================
+
+btnReset.addEventListener(
+    'click',
+    () => {
+
+        calibrationPoints = [];
+
+        imageCaptured = false;
+
+        capturedImageObj = null;
+
+        btnCalculate.disabled = true;
+
+        pointStatus.textContent =
+            'Puntos seleccionados: 0 / 4';
+
+        document.getElementById(
+            'resultsCard'
+        ).style.display = 'none';
+
+        const gCtx =
+            document.getElementById(
+                'siluetaCanvas'
+            ).getContext('2d');
+
+        gCtx.clearRect(
+            0,
+            0,
+            320,
+            420
+        );
+
+        redrawCanvas();
+    }
+);
+```
